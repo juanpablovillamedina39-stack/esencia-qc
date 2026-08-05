@@ -1,0 +1,23 @@
+# nunca subas material del cliente
+*.mp4
+*.mov
+*.m4v
+*.mkv
+*.avi
+*.webm
+*.wav
+*.aac
+*.mp3
+
+# avances de revisión (pesan mucho: llevan las capturas en base64)
+avance_*.json
+*-estado.json
+
+# macOS
+.DS_Store
+._*
+.Spotlight-V100
+.Trashes
+
+# pruebas internas
+_test/node_modules/

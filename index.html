@@ -1,0 +1,1237 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Revisor QC · ESENCIA</title>
+<style>
+:root{
+  --bg:#0d1117; --bg2:#131a23; --bg3:#1b2430; --linea:#26303d;
+  --txt:#e6edf3; --txt2:#8b98a8; --txt3:#5d6b7d;
+  --azul:#14a9ff; --ok:#2ea043; --amb:#ffaf14; --rojo:#f5384e; --rosa:#f3a6b8;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+html,body{height:100%}
+body{background:var(--bg);color:var(--txt);font:14px/1.45 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;overflow:hidden}
+button{font:inherit;cursor:pointer;border:0;border-radius:7px;background:var(--bg3);color:var(--txt);padding:7px 12px;transition:.12s}
+button:hover{background:#27323f}
+button:active{transform:translateY(1px)}
+button.pri{background:var(--azul);color:#04121d;font-weight:600}
+button.pri:hover{background:#3fbaff}
+button.ok{background:var(--ok);color:#04120a;font-weight:600}
+button.peq{padding:4px 8px;font-size:12px;border-radius:6px}
+button:disabled{opacity:.4;cursor:not-allowed}
+input,select,textarea{font:inherit;background:var(--bg);border:1px solid var(--linea);color:var(--txt);border-radius:7px;padding:7px 9px;outline:none;width:100%}
+input:focus,select:focus,textarea:focus{border-color:var(--azul)}
+textarea{resize:vertical;min-height:64px;line-height:1.5}
+.mono{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-variant-numeric:tabular-nums}
+
+/* ---------- layout ---------- */
+#app{display:flex;flex-direction:column;height:100vh}
+header{display:flex;align-items:center;gap:10px;padding:9px 14px;background:var(--bg2);border-bottom:1px solid var(--linea);flex-shrink:0}
+header h1{font-size:14px;font-weight:700;letter-spacing:.4px;white-space:nowrap}
+header h1 span{color:var(--azul)}
+header .sep{flex:1}
+header input.proy{width:190px;padding:5px 8px;font-size:13px}
+#main{flex:1;display:grid;grid-template-columns:50% 50%;min-height:0}
+#izq{display:flex;flex-direction:column;min-height:0;border-right:1px solid var(--linea);background:#07090c}
+#der{display:flex;flex-direction:column;min-height:0;overflow:hidden}
+
+/* ---------- video ---------- */
+#zonaVideo{flex:1;display:flex;align-items:center;justify-content:center;min-height:0;position:relative;background:#000}
+#video{max-width:100%;max-height:100%;display:block;background:#000}
+#sinVideo{color:var(--txt3);text-align:center;padding:30px;font-size:13px;line-height:1.8}
+#subOverlay{position:absolute;left:0;right:0;bottom:8%;text-align:center;pointer-events:none;padding:0 6%}
+#subOverlay span{background:rgba(0,0,0,.62);padding:4px 10px;border-radius:6px;font-size:15px;line-height:1.55;box-decoration-break:clone;-webkit-box-decoration-break:clone}
+#transporte{background:var(--bg2);border-top:1px solid var(--linea);padding:8px 12px 10px;flex-shrink:0}
+.fila{display:flex;align-items:center;gap:7px;flex-wrap:wrap}
+.fila+.fila{margin-top:7px}
+#barra{position:relative;height:26px;background:var(--bg);border:1px solid var(--linea);border-radius:6px;overflow:hidden;cursor:pointer;margin:8px 0 6px}
+#barraProg{position:absolute;top:0;bottom:0;left:0;background:rgba(20,169,255,.18);pointer-events:none}
+#barraCursor{position:absolute;top:0;bottom:0;width:2px;background:var(--azul);pointer-events:none}
+.marcaSub{position:absolute;top:16px;height:8px;background:var(--txt3);border-radius:2px;pointer-events:none}
+.marcaErr{position:absolute;top:2px;width:3px;height:12px;border-radius:2px;pointer-events:none}
+#tcGrande{font-size:19px;font-weight:700;letter-spacing:.5px}
+#tcSec{color:var(--txt2);font-size:12px}
+.pill{background:var(--bg3);border-radius:20px;padding:3px 10px;font-size:12px;color:var(--txt2);white-space:nowrap}
+
+/* ---------- cinta de segundos ---------- */
+#cinta{display:flex;flex-wrap:wrap;gap:2px;max-height:56px;overflow-y:auto;padding:2px 0}
+.seg{width:20px;height:15px;border-radius:3px;background:#1e2732;font-size:9px;color:var(--txt3);display:flex;align-items:center;justify-content:center;cursor:pointer;user-select:none}
+.seg:hover{outline:1px solid var(--azul)}
+.seg.ok{background:#16341f;color:#5fce80}
+.seg.err{background:#3a1116;color:#ff8b98}
+.seg.act{outline:2px solid var(--azul);color:var(--txt)}
+
+/* ---------- panel derecho ---------- */
+#tabs{display:flex;gap:4px;padding:8px 12px 0;background:var(--bg2);border-bottom:1px solid var(--linea);flex-shrink:0}
+.tab{padding:7px 13px;border-radius:7px 7px 0 0;background:transparent;color:var(--txt2);font-size:13px}
+.tab.act{background:var(--bg);color:var(--txt);font-weight:600;box-shadow:inset 0 -2px 0 var(--azul)}
+.tab b{color:var(--azul);margin-left:5px}
+#panel{flex:1;overflow-y:auto;padding:12px 14px 60px}
+.vista{display:none}
+.vista.act{display:block}
+h2{font-size:12px;text-transform:uppercase;letter-spacing:.9px;color:var(--txt2);margin:16px 0 8px;font-weight:700}
+h2:first-child{margin-top:0}
+.caja{background:var(--bg2);border:1px solid var(--linea);border-radius:9px;padding:11px;margin-bottom:10px}
+.grid2{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.grid3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px}
+label{display:block;font-size:11px;color:var(--txt2);margin-bottom:3px;text-transform:uppercase;letter-spacing:.5px}
+
+/* clips */
+.clip{display:flex;align-items:center;gap:9px;padding:9px 10px;border-radius:9px;background:var(--bg2);border:1px solid var(--linea);margin-bottom:7px;cursor:pointer}
+.clip:hover{border-color:#3a4a5e}
+.clip.act{border-color:var(--azul);background:#0f2233}
+.clip .num{width:26px;height:26px;border-radius:7px;background:var(--bg3);display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:700;flex-shrink:0}
+.clip .nom{flex:1;min-width:0}
+.clip .nom div:first-child{font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.clip .nom div:last-child{font-size:11px;color:var(--txt2)}
+.clip .est{font-size:11px;text-align:right;white-space:nowrap}
+.badge{display:inline-block;padding:1px 7px;border-radius:20px;font-size:10px;font-weight:700;letter-spacing:.3px}
+.b-err{background:#3a1116;color:#ff8b98}
+.b-ok{background:#16341f;color:#5fce80}
+.b-pend{background:var(--bg3);color:var(--txt2)}
+
+/* subtitulos */
+.sub{padding:8px 10px;border-radius:8px;margin-bottom:5px;background:var(--bg2);border:1px solid transparent;cursor:pointer}
+.sub:hover{border-color:#33414f}
+.sub.act{background:#0f2233;border-color:var(--azul)}
+.sub .tc{font-size:11px;color:var(--txt2);display:flex;gap:8px;align-items:center;margin-bottom:3px}
+.sub .txt{line-height:1.55}
+.pal{cursor:pointer;border-radius:4px;padding:0 1px}
+.pal:hover{background:var(--azul);color:#04121d}
+.pal.marcada{color:var(--azul);font-weight:600}
+
+/* errores */
+.err{background:var(--bg2);border:1px solid var(--linea);border-left:3px solid var(--rojo);border-radius:9px;padding:10px;margin-bottom:9px;display:flex;gap:10px}
+.err.sev-medio{border-left-color:var(--amb)}
+.err.sev-menor{border-left-color:var(--txt3)}
+.err img{width:auto;max-width:86px;max-height:124px;border-radius:6px;cursor:zoom-in;background:#000;flex-shrink:0;align-self:flex-start}
+.err .cuerpo{flex:1;min-width:0}
+.err .cab{display:flex;gap:7px;align-items:center;flex-wrap:wrap;margin-bottom:5px}
+.err .desc{color:var(--txt);font-size:13px;line-height:1.5;white-space:pre-wrap}
+.err .cita{color:var(--txt2);font-size:12px;font-style:italic;margin-top:4px}
+.err .acc{display:flex;gap:6px;margin-top:7px}
+.tipoTag{background:var(--bg3);padding:2px 8px;border-radius:20px;font-size:11px;font-weight:600}
+
+/* modal */
+#velo{position:fixed;inset:0;background:rgba(0,0,0,.72);display:none;align-items:center;justify-content:center;z-index:50;padding:20px}
+#velo.act{display:flex}
+#modal{background:var(--bg2);border:1px solid var(--linea);border-radius:14px;padding:18px;width:min(860px,96vw);max-height:92vh;overflow-y:auto}
+#modal h3{font-size:15px;margin-bottom:12px;display:flex;align-items:center;gap:9px}
+#modalCap{width:100%;max-height:300px;object-fit:contain;background:#000;border-radius:9px;margin-bottom:10px}
+#lupa{position:fixed;inset:0;background:rgba(0,0,0,.9);display:none;align-items:center;justify-content:center;z-index:60;cursor:zoom-out;padding:20px}
+#lupa.act{display:flex}
+#lupa img{max-width:100%;max-height:100%;border-radius:8px}
+
+#toast{position:fixed;bottom:18px;left:50%;transform:translateX(-50%);background:var(--bg3);border:1px solid var(--linea);padding:9px 16px;border-radius:9px;z-index:70;opacity:0;transition:.25s;pointer-events:none;font-size:13px}
+#toast.act{opacity:1}
+.ayuda{color:var(--txt3);font-size:11px;line-height:1.7}
+kbd{background:var(--bg3);border:1px solid var(--linea);border-bottom-width:2px;border-radius:5px;padding:1px 5px;font-family:ui-monospace,monospace;font-size:11px;color:var(--txt)}
+.vacio{color:var(--txt3);text-align:center;padding:26px 10px;font-size:13px;line-height:1.7}
+::-webkit-scrollbar{width:9px;height:9px}
+::-webkit-scrollbar-thumb{background:#2a3644;border-radius:9px}
+::-webkit-scrollbar-track{background:transparent}
+</style>
+</head>
+<body>
+<div id="app">
+
+  <header>
+    <h1>REVISOR <span>QC</span></h1>
+    <input class="proy" id="fProyecto" placeholder="Proyecto" value="">
+    <input class="proy" id="fCliente" placeholder="Cliente">
+    <input class="proy" id="fRevisor" placeholder="Revisor" style="width:130px">
+    <span class="sep"></span>
+    <span class="pill" id="pillEstado">sin archivos</span>
+    <button class="peq" id="bAyuda">Atajos</button>
+    <button class="peq" id="bCargar">Cargar archivos</button>
+    <button class="peq" id="bGuardar">Guardar avance</button>
+    <button class="peq" id="bAbrir">Abrir avance</button>
+    <button class="pri peq" id="bInforme">Generar informe</button>
+    <input type="file" id="inArchivos" multiple accept="video/*,.srt,.txt,.vtt,.json" hidden>
+    <input type="file" id="inAvance" accept=".json" hidden>
+  </header>
+
+  <div id="main">
+    <div id="izq">
+      <div id="zonaVideo">
+        <video id="video" playsinline hidden></video>
+        <div id="sinVideo">
+          Arrastra aquí los <b>clips</b> (.mp4) y el <b>.srt</b> del proyecto<br>
+          o pulsa <b>Cargar archivos</b> arriba a la derecha.
+        </div>
+        <div id="subOverlay"></div>
+      </div>
+      <div id="transporte">
+        <div id="barra">
+          <div id="barraProg"></div>
+          <div id="barraCursor" style="left:0"></div>
+        </div>
+        <div class="fila">
+          <button id="bPlay" style="width:44px">▶</button>
+          <button class="peq" id="bAtras">◀ paso</button>
+          <button class="peq" id="bAdelante">paso ▶</button>
+          <span class="mono" id="tcGrande">00:00:00:00</span>
+          <span class="mono" id="tcSec">0.000 s · sec 0.000 s</span>
+          <span class="sep" style="flex:1"></span>
+          <select id="fPaso" style="width:104px" title="Tamaño del paso">
+            <option value="frame">1 frame</option>
+            <option value="0.25">0.25 s</option>
+            <option value="0.5">0.5 s</option>
+            <option value="1" selected>1 s</option>
+            <option value="2">2 s</option>
+          </select>
+          <select id="fVel" style="width:78px" title="Velocidad">
+            <option value="0.25">0.25×</option>
+            <option value="0.5">0.5×</option>
+            <option value="1" selected>1×</option>
+            <option value="1.5">1.5×</option>
+            <option value="2">2×</option>
+          </select>
+        </div>
+        <div class="fila" style="margin-top:8px">
+          <button class="pri peq" id="bError">+ Error aquí <kbd>E</kbd></button>
+          <button class="ok peq" id="bSegOk">Segundo OK <kbd>G</kbd></button>
+          <button class="peq" id="bCaptura">Captura suelta</button>
+          <span class="sep" style="flex:1"></span>
+          <span class="pill" id="pillCinta">—</span>
+        </div>
+        <div id="cinta"></div>
+      </div>
+    </div>
+
+    <div id="der">
+      <div id="tabs">
+        <button class="tab act" data-v="clips">Clips<b id="nClips">0</b></button>
+        <button class="tab" data-v="subs">Subtítulos<b id="nSubs">0</b></button>
+        <button class="tab" data-v="errores">Errores<b id="nErrs">0</b></button>
+        <button class="tab" data-v="ajustes">Ajustes</button>
+      </div>
+      <div id="panel">
+        <div class="vista act" id="v-clips"></div>
+        <div class="vista" id="v-subs"></div>
+        <div class="vista" id="v-errores"></div>
+        <div class="vista" id="v-ajustes"></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div id="velo"><div id="modal"></div></div>
+<div id="lupa"><img id="lupaImg" alt=""></div>
+<div id="toast"></div>
+<canvas id="lienzo" hidden></canvas>
+
+<script>
+/* ============================================================
+   REVISOR QC · ESENCIA — Juan Pablo Edit
+   Un solo archivo, sin dependencias, sin servidor.
+   Nada sale del computador: los videos se leen con URL.createObjectURL.
+   ============================================================ */
+
+const TIPOS = [
+  {id:'texto_mas',   n:'Texto de más',        c:'#f5384e', ayuda:'Palabra o frase escrita que no se dice'},
+  {id:'texto_falta', n:'Palabra faltante',    c:'#ff7043', ayuda:'Se dice pero no está en el subtítulo'},
+  {id:'inaudible',   n:'Inaudible',           c:'#ffaf14', ayuda:'No se entiende / audio sucio'},
+  {id:'sin_resalte', n:'Sin resaltar',        c:'#14a9ff', ayuda:'La palabra clave quedó en blanco'},
+  {id:'mal_resalte', n:'Resalte incorrecto',  c:'#4fc3f7', ayuda:'Resaltó una palabra que no era'},
+  {id:'encuadre',    n:'Encuadre',            c:'#ab47bc', ayuda:'Cabeza cortada, aire, descentrado'},
+  {id:'plano',       n:'Plano / corte',       c:'#7e57c2', ayuda:'Plano repetido, salto, corte mal puesto'},
+  {id:'color',       n:'Colorimetría',        c:'#26a69a', ayuda:'Color distinto entre planos, expuesto mal'},
+  {id:'sync',        n:'Sync de subtítulo',   c:'#66bb6a', ayuda:'Entra tarde o temprano'},
+  {id:'audio',       n:'Audio',               c:'#8d6e63', ayuda:'Nivel, pop, ruido, música'},
+  {id:'otro',        n:'Otro',                c:'#78909c', ayuda:''}
+];
+const SEVS = [{id:'critico',n:'Crítico'},{id:'medio',n:'Medio'},{id:'menor',n:'Menor'}];
+const tipoDe = id => TIPOS.find(t=>t.id===id) || TIPOS[TIPOS.length-1];
+
+const S = {
+  proyecto:'', cliente:'', revisor:'',
+  fps:30,
+  modoReparto:'acumulado',   // acumulado | huecos | reinicio | manual
+  umbralHueco:1.5,
+  clips:[],                  // {id,nombre,archivo,url,dur,inicio,subs:[],errores:[],segsOk:[],revisado:false}
+  srtNombre:'', cues:[],     // cues del srt completo (timeline)
+  actual:-1,
+  contador:1
+};
+
+const $  = s => document.querySelector(s);
+const $$ = s => [...document.querySelectorAll(s)];
+const video = $('#video');
+
+/* ---------- utilidades ---------- */
+function pad(n,l=2){ return String(Math.floor(Math.abs(n))).padStart(l,'0'); }
+function aTC(seg, fps){                      // HH:MM:SS:FF
+  fps = fps || S.fps; if(!isFinite(seg)) seg=0; if(seg<0) seg=0;
+  const f = Math.floor((seg - Math.floor(seg)) * fps + 1e-6);
+  const s = Math.floor(seg);
+  return `${pad(s/3600)}:${pad((s%3600)/60)}:${pad(s%60)}:${pad(f)}`;
+}
+function aMS(seg){                            // m:ss.mmm
+  if(!isFinite(seg)||seg<0) seg=0;
+  const ms = Math.round(seg*1000);
+  return `${Math.floor(ms/60000)}:${pad((ms%60000)/1000)}.${pad(ms%1000,3)}`;
+}
+function esc(t){ return String(t==null?'':t).replace(/[&<>"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m])); }
+function toast(m){ const t=$('#toast'); t.textContent=m; t.classList.add('act'); clearTimeout(t._t); t._t=setTimeout(()=>t.classList.remove('act'),2100); }
+function natSort(a,b){ return a.localeCompare(b,'es',{numeric:true,sensitivity:'base'}); }
+const RX_DIAC = new RegExp('[\\u0300-\\u036f]','g');
+function norm(s){ return String(s).toLowerCase().normalize('NFD').replace(RX_DIAC,''); }
+
+/* ---------- SRT / VTT ---------- */
+function tcASeg(t){
+  const m = t.trim().match(/(?:(\d+):)?(\d{1,2}):(\d{1,2})[,.](\d{1,3})/);
+  if(!m) return null;
+  return (+(m[1]||0))*3600 + (+m[2])*60 + (+m[3]) + (+m[4].padEnd(3,'0'))/1000;
+}
+function parseSubs(txt){
+  txt = txt.replace(/^﻿/,'').replace(/\r\n?/g,'\n');
+  const cues=[];
+  const bloques = txt.split(/\n{2,}/);
+  for(const b of bloques){
+    const ls = b.split('\n').filter(l=>l.trim()!=='');
+    if(!ls.length) continue;
+    let i = 0;
+    if(/^\d+$/.test(ls[0].trim())) i = 1;
+    if(i>=ls.length) continue;
+    const mt = ls[i].match(/(.+?)\s*-->\s*(.+)/);
+    if(!mt) continue;
+    const ini = tcASeg(mt[1]), fin = tcASeg(mt[2]);
+    if(ini==null||fin==null) continue;
+    const texto = ls.slice(i+1).join('\n')
+      .replace(/<[^>]+>/g,'')
+      .replace(/\{[^}]*\}/g,'')
+      .trim();
+    if(texto) cues.push({ini,fin,texto});
+  }
+  cues.sort((a,b)=>a.ini-b.ini || a.fin-b.fin);
+  return cues;
+}
+
+/* ---------- reparto del SRT continuo entre los clips ---------- */
+function detectarModo(){
+  if(!S.cues.length || !S.clips.length) return S.modoReparto;
+  const total = S.clips.reduce((a,c)=>a+c.dur,0);
+  const finSrt = S.cues[S.cues.length-1].fin;
+  // si el srt cabe dentro de un solo clip y hay más de uno -> los tiempos reinician
+  if(S.clips.length>1 && finSrt <= Math.max(...S.clips.map(c=>c.dur))+1) return 'reinicio';
+  return 'acumulado';
+}
+function bloquesPorHueco(umbral){
+  const bl=[]; let cur=[];
+  for(let i=0;i<S.cues.length;i++){
+    if(cur.length && S.cues[i].ini - S.cues[i-1].fin > umbral){ bl.push(cur); cur=[]; }
+    cur.push(S.cues[i]);
+  }
+  if(cur.length) bl.push(cur);
+  return bl;
+}
+function repartir(){
+  S.clips.forEach(c=>c.subs=[]);
+  if(!S.clips.length) return;
+  const modo = S.modoReparto;
+
+  if(modo==='acumulado'){
+    let t=0; S.clips.forEach(c=>{ c.inicio=t; t+=c.dur; });
+  }
+  else if(modo==='huecos'){
+    const bl = bloquesPorHueco(S.umbralHueco);
+    S.clips.forEach((c,i)=>{ c.inicio = bl[i] ? bl[i][0].ini - 0.2 : (i?S.clips[i-1].inicio+S.clips[i-1].dur:0); });
+  }
+  else if(modo==='reinicio'){
+    // los tiempos vuelven a 0 en cada clip: cortamos donde el tiempo retrocede
+    const bl=[]; let cur=[];
+    for(let i=0;i<S.cues.length;i++){
+      if(cur.length && S.cues[i].ini < cur[cur.length-1].ini){ bl.push(cur); cur=[]; }
+      cur.push(S.cues[i]);
+    }
+    if(cur.length) bl.push(cur);
+    S.clips.forEach((c,i)=>{
+      c.inicio = 0;
+      c.subs = (bl[i]||[]).map(q=>({ini:q.ini,fin:q.fin,texto:q.texto,marcadas:[]}));
+    });
+    return;
+  }
+  // 'manual' respeta c.inicio tal cual está
+
+  const tol = 0.08;
+  S.clips.forEach(c=>{
+    c.subs = S.cues
+      .filter(q => q.ini >= c.inicio - tol && q.ini < c.inicio + c.dur - tol)
+      .map(q => ({ini:+(q.ini-c.inicio).toFixed(3), fin:+(Math.min(q.fin, c.inicio+c.dur)-c.inicio).toFixed(3), texto:q.texto, marcadas:[]}));
+  });
+}
+/* ============================ CARGA DE ARCHIVOS ============================ */
+function duracionDe(url){
+  return new Promise(res=>{
+    const v = document.createElement('video');
+    v.preload='metadata'; v.muted=true;
+    v.onloadedmetadata = ()=>res({dur:v.duration||0, w:v.videoWidth||0, h:v.videoHeight||0});
+    v.onerror = ()=>res({dur:0,w:0,h:0});
+    v.src = url;
+  });
+}
+async function cargarArchivos(lista){
+  const arch = [...lista];
+  const vids = arch.filter(f=>/\.(mp4|mov|m4v|webm|mkv|avi)$/i.test(f.name) || f.type.startsWith('video/'));
+  const subs = arch.filter(f=>/\.(srt|vtt|txt)$/i.test(f.name));
+  const jsons= arch.filter(f=>/\.json$/i.test(f.name));
+
+  if(jsons.length){ await abrirAvanceArchivo(jsons[0]); return; }
+
+  if(subs.length){
+    const txt = await subs[0].text();
+    S.cues = parseSubs(txt);
+    S.srtNombre = subs[0].name;
+    if(!S.cues.length) toast('Ese archivo de subtítulos no tenía bloques legibles');
+  }
+  if(vids.length){
+    vids.sort((a,b)=>natSort(a.name,b.name));
+    const nuevos=[];
+    for(const f of vids){
+      const url = URL.createObjectURL(f);
+      const meta = await duracionDe(url);
+      nuevos.push({
+        id:'c'+(S.contador++), nombre:f.name, url, dur:meta.dur, w:meta.w, h:meta.h,
+        inicio:0, subs:[], errores:[], segsOk:[], revisado:false
+      });
+    }
+    S.clips = S.clips.concat(nuevos);
+    S.clips.sort((a,b)=>natSort(a.nombre,b.nombre));
+    if(!S.proyecto && !$('#fProyecto').value){
+      const base = vids[0].name.replace(/\.[^.]+$/,'').replace(/[_-]?\d+$/,'');
+      $('#fProyecto').value = base || 'Proyecto';
+    }
+  }
+  if(S.clips.length && S.cues.length){
+    S.modoReparto = detectarModo();
+    $('#fModo') && ($('#fModo').value = S.modoReparto);
+  }
+  repartir();
+  if(S.actual<0 && S.clips.length) irAClip(0);
+  pintarTodo();
+  toast(`${S.clips.length} clip(s) · ${S.cues.length} subtítulo(s)`);
+}
+
+/* ============================ VIDEO ============================ */
+const clipAct = () => S.clips[S.actual] || null;
+
+function irAClip(i, t){
+  if(i<0 || i>=S.clips.length) return;
+  const cambia = i !== S.actual;
+  S.actual = i;
+  const c = S.clips[i];
+  if(cambia){
+    video.hidden = false;
+    $('#sinVideo').style.display='none';
+    video.src = c.url;
+    video.playbackRate = +$('#fVel').value;
+    video.load();
+  }
+  if(t!=null){
+    const ir = ()=>{ video.currentTime = Math.max(0, Math.min(t, (video.duration||c.dur)-0.001)); };
+    if(video.readyState>=1) ir(); else video.addEventListener('loadedmetadata', ir, {once:true});
+  }
+  pintarTodo();
+}
+function paso(){
+  const v = $('#fPaso').value;
+  return v==='frame' ? 1/S.fps : +v;
+}
+function mover(d){
+  if(!clipAct()) return;
+  video.pause();
+  video.currentTime = Math.max(0, Math.min((video.duration||0)-0.001, video.currentTime + d));
+}
+function subActual(){
+  const c = clipAct(); if(!c) return null;
+  const t = video.currentTime;
+  return c.subs.find(s=>t>=s.ini-0.001 && t<=s.fin+0.001) || null;
+}
+function pintarOverlay(){
+  const s = subActual();
+  const o = $('#subOverlay');
+  if(!s){ o.innerHTML=''; return; }
+  o.innerHTML = '<span>'+s.texto.split('\n').map(esc).join('<br>')+'</span>';
+}
+function pintarTC(){
+  const c = clipAct(); if(!c) return;
+  const t = video.currentTime||0;
+  $('#tcGrande').textContent = aTC(t);
+  $('#tcSec').textContent = `${t.toFixed(3)} s · secuencia ${(c.inicio+t).toFixed(3)} s`;
+  const pct = c.dur ? (t/c.dur*100) : 0;
+  $('#barraCursor').style.left = pct+'%';
+  $('#barraProg').style.width = pct+'%';
+}
+
+/* ============================ CINTA DE SEGUNDOS ============================ */
+function nSegs(c){ return Math.max(1, Math.ceil((c.dur||0) - 0.15)); }
+function pintarCinta(){
+  const c = clipAct(); const cinta = $('#cinta');
+  if(!c){ cinta.innerHTML=''; $('#pillCinta').textContent='—'; return; }
+  const n = nSegs(c);
+  const act = Math.floor(video.currentTime||0);
+  const conErr = new Set(c.errores.map(e=>Math.floor(e.t)));
+  let h='';
+  for(let i=0;i<n;i++){
+    const cls = ['seg', c.segsOk.includes(i)?'ok':'', conErr.has(i)?'err':'', i===act?'act':''].filter(Boolean).join(' ');
+    h += `<div class="${cls}" data-s="${i}" title="segundo ${i}">${i}</div>`;
+  }
+  cinta.innerHTML=h;
+  const marcados = c.segsOk.length;
+  $('#pillCinta').textContent = `${marcados}/${n} s revisados`;
+  const a = cinta.querySelector('.seg.act');
+  if(a) a.scrollIntoView({block:'nearest'});
+}
+function marcarSegOk(){
+  const c = clipAct(); if(!c) return;
+  const s = Math.floor(video.currentTime||0);
+  if(!c.segsOk.includes(s)) c.segsOk.push(s);
+  const n = nSegs(c);
+  if(s+1 < n) video.currentTime = s+1; else video.currentTime = Math.max(0,c.dur-0.05);
+  if(c.segsOk.length >= n) c.revisado = true;
+  pintarTodo();
+}
+
+/* ============================ CAPTURA DE FRAME ============================ */
+function capturarFrame(maxW){
+  maxW = maxW || 720;
+  const c = clipAct();
+  if(!c || !video.videoWidth) return null;
+  const lienzo = $('#lienzo');
+  const k = Math.min(1, maxW/video.videoWidth);
+  lienzo.width  = Math.round(video.videoWidth*k);
+  lienzo.height = Math.round(video.videoHeight*k);
+  const ctx = lienzo.getContext('2d');
+  ctx.drawImage(video, 0, 0, lienzo.width, lienzo.height);
+  try{ return lienzo.toDataURL('image/jpeg', 0.82); }
+  catch(e){ toast('No se pudo capturar el frame'); return null; }
+}
+function descargar(nombre, blob){
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob); a.download = nombre;
+  document.body.appendChild(a); a.click();
+  setTimeout(()=>{ URL.revokeObjectURL(a.href); a.remove(); }, 1500);
+}
+function dataURLaBlob(d){
+  const [cab, b64] = d.split(',');
+  const mime = cab.match(/:(.*?);/)[1];
+  const bin = atob(b64); const u8 = new Uint8Array(bin.length);
+  for(let i=0;i<bin.length;i++) u8[i]=bin.charCodeAt(i);
+  return new Blob([u8], {type:mime});
+}
+
+/* ============================ ERRORES ============================ */
+function nuevoError(pre){
+  const c = clipAct();
+  if(!c){ toast('Carga un clip primero'); return; }
+  video.pause();
+  const t = video.currentTime||0;
+  const s = subActual();
+  abrirModalError({
+    id:'e'+Date.now()+Math.floor(Math.random()*999),
+    t, tipo:(pre&&pre.tipo)||'texto_mas', sev:'critico', plano:'',
+    desc:(pre&&pre.desc)||'', palabra:(pre&&pre.palabra)||'',
+    cita: s ? s.texto : '', captura: capturarFrame()
+  }, true);
+}
+function abrirModalError(e, esNuevo){
+  const c = clipAct();
+  $('#modal').innerHTML = `
+    <h3>${esNuevo?'Nuevo error':'Editar error'}
+      <span class="pill mono">${aTC(e.t)}</span>
+      <span class="pill">${esc(c.nombre)}</span></h3>
+    ${e.captura?`<img id="modalCap" src="${e.captura}" alt="captura">`:'<div class="vacio">Sin captura</div>'}
+    <div class="fila" style="margin-bottom:12px">
+      <button class="peq" id="mRecap">Recapturar frame actual</button>
+      <button class="peq" id="mSinCap">Quitar captura</button>
+      <span class="sep" style="flex:1"></span>
+      <span class="ayuda">Se guarda el frame exacto en el que estás</span>
+    </div>
+    <div class="grid3" style="margin-bottom:10px">
+      <div><label>Tipo</label><select id="mTipo">${TIPOS.map(t=>`<option value="${t.id}" ${t.id===e.tipo?'selected':''}>${t.n}</option>`).join('')}</select></div>
+      <div><label>Severidad</label><select id="mSev">${SEVS.map(s=>`<option value="${s.id}" ${s.id===e.sev?'selected':''}>${s.n}</option>`).join('')}</select></div>
+      <div><label>Plano</label><select id="mPlano">
+        <option value="">—</option>
+        ${['P1','P2','P3'].map(p=>`<option value="${p}" ${p===e.plano?'selected':''}>${p}</option>`).join('')}
+      </select></div>
+    </div>
+    <div class="grid2" style="margin-bottom:10px">
+      <div><label>Timecode (s)</label><input id="mT" class="mono" value="${e.t.toFixed(3)}"></div>
+      <div><label>Palabra afectada (opcional)</label><input id="mPal" value="${esc(e.palabra||'')}"></div>
+    </div>
+    <div style="margin-bottom:10px">
+      <label>Qué hay que corregir</label>
+      <textarea id="mDesc" placeholder="Ej: sobra la palabra «que», el subtítulo dice otra cosa">${esc(e.desc||'')}</textarea>
+    </div>
+    <div style="margin-bottom:14px">
+      <label>Subtítulo en ese punto</label>
+      <input id="mCita" value="${esc(e.cita||'')}">
+    </div>
+    <div class="fila">
+      ${esNuevo?'':'<button id="mBorrar" style="background:#3a1116;color:#ff8b98">Borrar error</button>'}
+      <span class="sep" style="flex:1"></span>
+      <button id="mCancel">Cancelar</button>
+      <button class="pri" id="mOk">${esNuevo?'Añadir error':'Guardar'}</button>
+    </div>`;
+  $('#velo').classList.add('act');
+  const foco = $('#mDesc'); setTimeout(()=>foco.focus(),40);
+
+  let cap = e.captura;
+  $('#mRecap').onclick = ()=>{ const n=capturarFrame(); if(n){ cap=n; const im=$('#modalCap'); if(im) im.src=n; else abrirModalError({...leer(),captura:n}, esNuevo); } };
+  $('#mSinCap').onclick = ()=>{ cap=null; const im=$('#modalCap'); if(im) im.remove(); };
+  const leer = ()=>({
+    id:e.id, t:parseFloat($('#mT').value)||0, tipo:$('#mTipo').value, sev:$('#mSev').value,
+    plano:$('#mPlano').value, desc:$('#mDesc').value.trim(), palabra:$('#mPal').value.trim(),
+    cita:$('#mCita').value.trim(), captura:cap
+  });
+  $('#mCancel').onclick = cerrarModal;
+  if($('#mBorrar')) $('#mBorrar').onclick = ()=>{
+    const c2 = clipAct(); c2.errores = c2.errores.filter(x=>x.id!==e.id);
+    cerrarModal(); pintarTodo(); toast('Error borrado');
+  };
+  $('#mOk').onclick = ()=>{
+    const d = leer();
+    if(!d.desc){ toast('Escribe qué hay que corregir'); $('#mDesc').focus(); return; }
+    const c2 = clipAct();
+    const i = c2.errores.findIndex(x=>x.id===d.id);
+    if(i>=0) c2.errores[i]=d; else c2.errores.push(d);
+    c2.errores.sort((a,b)=>a.t-b.t);
+    cerrarModal(); pintarTodo(); irVista('errores');
+    toast(i>=0?'Error actualizado':'Error añadido');
+  };
+}
+function cerrarModal(){ $('#velo').classList.remove('act'); $('#modal').innerHTML=''; }
+function todosLosErrores(){
+  const out=[];
+  S.clips.forEach((c,i)=>c.errores.forEach(e=>out.push({...e, clip:c, ci:i})));
+  return out;
+}
+/* ============================ PINTAR PANELES ============================ */
+function pintarTodo(){ pintarClips(); pintarSubs(); pintarErrores(); pintarAjustes(); pintarCinta(); pintarBarra(); pintarTC(); pintarOverlay(); pintarCabecera(); }
+
+function pintarCabecera(){
+  $('#nClips').textContent = S.clips.length;
+  $('#nSubs').textContent  = clipAct() ? clipAct().subs.length : 0;
+  const n = todosLosErrores().length;
+  $('#nErrs').textContent  = n;
+  const rev = S.clips.filter(c=>c.revisado).length;
+  $('#pillEstado').textContent = S.clips.length
+    ? `${rev}/${S.clips.length} clips revisados · ${n} error(es)`
+    : 'sin archivos';
+}
+function pintarBarra(){
+  const c = clipAct(); const b = $('#barra');
+  b.querySelectorAll('.marcaSub,.marcaErr').forEach(x=>x.remove());
+  if(!c || !c.dur) return;
+  c.subs.forEach(s=>{
+    const d=document.createElement('div'); d.className='marcaSub';
+    d.style.left = (s.ini/c.dur*100)+'%';
+    d.style.width = Math.max(0.4,(s.fin-s.ini)/c.dur*100)+'%';
+    b.appendChild(d);
+  });
+  c.errores.forEach(e=>{
+    const d=document.createElement('div'); d.className='marcaErr';
+    d.style.left = (e.t/c.dur*100)+'%';
+    d.style.background = tipoDe(e.tipo).c;
+    b.appendChild(d);
+  });
+}
+function pintarClips(){
+  const v = $('#v-clips');
+  if(!S.clips.length){
+    v.innerHTML = `<div class="vacio">Sin clips cargados.<br>Arrastra los .mp4 y el .srt sobre la ventana.</div>`;
+    return;
+  }
+  let h = `<h2>Clips (${S.clips.length})</h2>`;
+  S.clips.forEach((c,i)=>{
+    const nerr = c.errores.length;
+    const nseg = nSegs(c);
+    const pct  = Math.round(c.segsOk.length/nseg*100);
+    const badge = c.revisado
+      ? (nerr?`<span class="badge b-err">${nerr} error${nerr>1?'es':''}</span>`:'<span class="badge b-ok">OK</span>')
+      : `<span class="badge b-pend">${pct}%</span>${nerr?` <span class="badge b-err">${nerr}</span>`:''}`;
+    h += `<div class="clip ${i===S.actual?'act':''}" data-i="${i}">
+      <div class="num">${pad(i+1)}</div>
+      <div class="nom">
+        <div>${esc(c.nombre)}</div>
+        <div class="mono">${aMS(c.dur)} · ${c.subs.length} subs · IN secuencia ${c.inicio.toFixed(2)}s</div>
+      </div>
+      <div class="est">${badge}</div>
+    </div>`;
+  });
+  h += `<div class="fila" style="margin-top:10px">
+      <button class="peq" id="bRevisado">${clipAct()&&clipAct().revisado?'Desmarcar revisado':'Marcar clip como revisado'}</button>
+      <button class="peq" id="bTodoOk">Marcar todos los segundos OK</button>
+      <button class="peq" id="bLimpiarSeg">Limpiar segundos</button>
+    </div>
+    <div class="ayuda" style="margin-top:8px">La barra de segundos de abajo a la izquierda es tu control de avance: <kbd>G</kbd> marca el segundo actual y salta al siguiente.</div>`;
+  v.innerHTML = h;
+  v.querySelectorAll('.clip').forEach(el=>el.onclick=()=>irAClip(+el.dataset.i, 0));
+  const br = $('#bRevisado'); if(br) br.onclick=()=>{ const c=clipAct(); if(!c) return; c.revisado=!c.revisado; pintarTodo(); };
+  const bt = $('#bTodoOk'); if(bt) bt.onclick=()=>{ const c=clipAct(); if(!c) return; c.segsOk=[...Array(nSegs(c)).keys()]; c.revisado=true; pintarTodo(); };
+  const bl = $('#bLimpiarSeg'); if(bl) bl.onclick=()=>{ const c=clipAct(); if(!c) return; c.segsOk=[]; c.revisado=false; pintarTodo(); };
+}
+function pintarSubs(){
+  const v = $('#v-subs'); const c = clipAct();
+  if(!c){ v.innerHTML='<div class="vacio">Elige un clip.</div>'; return; }
+  if(!c.subs.length){
+    v.innerHTML = `<div class="vacio">Este clip no tiene subtítulos asignados.<br>
+      Revisa el reparto en <b>Ajustes</b> (modo y IN de secuencia).</div>`;
+    return;
+  }
+  const t = video.currentTime||0;
+  let h = `<h2>Subtítulos de ${esc(c.nombre)}</h2>
+    <div class="ayuda" style="margin-bottom:10px">Clic en la línea para saltar ahí. Clic en una <b>palabra</b> para reportarla al instante.</div>`;
+  c.subs.forEach((s,i)=>{
+    const act = t>=s.ini-0.001 && t<=s.fin+0.001;
+    const palabras = s.texto.split(/(\s+)/).map((p,j)=>
+      /^\s+$/.test(p) ? p : `<span class="pal" data-i="${i}" data-p="${esc(p)}">${esc(p)}</span>`
+    ).join('');
+    h += `<div class="sub ${act?'act':''}" data-i="${i}">
+      <div class="tc mono"><span>${aTC(s.ini)}</span><span>→</span><span>${aTC(s.fin)}</span>
+        <span style="color:var(--txt3)">${(s.fin-s.ini).toFixed(2)}s</span></div>
+      <div class="txt">${palabras}</div>
+    </div>`;
+  });
+  v.innerHTML = h;
+  v.querySelectorAll('.sub').forEach(el=>el.onclick=ev=>{
+    if(ev.target.classList.contains('pal')) return;
+    irAClip(S.actual, c.subs[+el.dataset.i].ini + 0.05);
+  });
+  v.querySelectorAll('.pal').forEach(el=>el.onclick=ev=>{
+    ev.stopPropagation();
+    const s = c.subs[+el.dataset.i];
+    const pal = el.dataset.p.replace(/[.,;:¿?¡!"»«]/g,'');
+    irAClip(S.actual, s.ini+0.05);
+    setTimeout(()=>menuPalabra(pal, s), 120);
+  });
+}
+function menuPalabra(pal, s){
+  $('#modal').innerHTML = `
+    <h3>Palabra: <span style="color:var(--azul)">${esc(pal)}</span></h3>
+    <div class="ayuda" style="margin-bottom:12px">${esc(s.texto)}</div>
+    <div class="grid2">
+      ${[['texto_mas','Sobra esta palabra'],['texto_falta','Falta una palabra aquí'],
+         ['sin_resalte','Debía ir resaltada'],['mal_resalte','No debía ir resaltada'],
+         ['inaudible','No se entiende'],['otro','Otro problema']]
+        .map(([t,n])=>`<button data-t="${t}" style="text-align:left;margin-bottom:7px">${n}</button>`).join('')}
+    </div>
+    <div class="fila" style="margin-top:6px"><span class="sep" style="flex:1"></span><button id="mCancel">Cancelar</button></div>`;
+  $('#velo').classList.add('act');
+  $('#mCancel').onclick = cerrarModal;
+  $('#modal').querySelectorAll('button[data-t]').forEach(b=>b.onclick=()=>{
+    const t = b.dataset.t;
+    cerrarModal();
+    const textos = {
+      texto_mas:`Sobra la palabra «${pal}» en el subtítulo.`,
+      texto_falta:`Falta una palabra junto a «${pal}».`,
+      sin_resalte:`La palabra «${pal}» tenía que ir resaltada en color.`,
+      mal_resalte:`La palabra «${pal}» no debía ir resaltada.`,
+      inaudible:`No se entiende «${pal}».`,
+      otro:`Revisar «${pal}».`
+    };
+    nuevoError({tipo:t, desc:textos[t], palabra:pal});
+  });
+}
+function pintarErrores(){
+  const v = $('#v-errores');
+  const todos = todosLosErrores();
+  if(!todos.length){ v.innerHTML='<div class="vacio">Todavía no hay errores marcados.<br>Pulsa <kbd>E</kbd> con el video en el punto del problema.</div>'; return; }
+  const porClip = {};
+  todos.forEach(e=>{ (porClip[e.ci] = porClip[e.ci]||[]).push(e); });
+  let h = `<div class="fila" style="margin-bottom:12px">
+      <span class="pill">${todos.length} en total</span>
+      ${SEVS.map(s=>`<span class="pill">${s.n}: ${todos.filter(e=>e.sev===s.id).length}</span>`).join('')}
+    </div>`;
+  Object.keys(porClip).sort((a,b)=>a-b).forEach(ci=>{
+    const c = S.clips[ci];
+    h += `<h2>${esc(c.nombre)} · ${porClip[ci].length}</h2>`;
+    porClip[ci].forEach(e=>{
+      const tp = tipoDe(e.tipo);
+      h += `<div class="err sev-${e.sev}" data-id="${e.id}" data-ci="${ci}">
+        ${e.captura?`<img src="${e.captura}" alt="captura" data-lupa="${e.id}">`:''}
+        <div class="cuerpo">
+          <div class="cab">
+            <span class="tipoTag" style="color:${tp.c}">${tp.n}</span>
+            <span class="mono" style="color:var(--txt2)">${aTC(e.t)}</span>
+            ${e.plano?`<span class="pill">${e.plano}</span>`:''}
+            <span class="pill">${SEVS.find(s=>s.id===e.sev).n}</span>
+          </div>
+          <div class="desc">${esc(e.desc)}</div>
+          ${e.cita?`<div class="cita">«${esc(e.cita)}»</div>`:''}
+          <div class="acc">
+            <button class="peq" data-ir="${e.id}">Ir al punto</button>
+            <button class="peq" data-ed="${e.id}">Editar</button>
+          </div>
+        </div></div>`;
+    });
+  });
+  v.innerHTML = h;
+  v.querySelectorAll('[data-ir]').forEach(b=>b.onclick=()=>{
+    const el = b.closest('.err'); const ci=+el.dataset.ci;
+    const e = S.clips[ci].errores.find(x=>x.id===b.dataset.ir);
+    irAClip(ci, e.t);
+  });
+  v.querySelectorAll('[data-ed]').forEach(b=>b.onclick=()=>{
+    const el = b.closest('.err'); const ci=+el.dataset.ci;
+    if(ci!==S.actual) irAClip(ci, S.clips[ci].errores.find(x=>x.id===b.dataset.ed).t);
+    setTimeout(()=>abrirModalError(S.clips[ci].errores.find(x=>x.id===b.dataset.ed), false), 150);
+  });
+  v.querySelectorAll('[data-lupa]').forEach(im=>im.onclick=()=>{ $('#lupaImg').src=im.src; $('#lupa').classList.add('act'); });
+}
+function pintarAjustes(){
+  const v = $('#v-ajustes');
+  v.innerHTML = `
+    <h2>Reparto del SRT entre los clips</h2>
+    <div class="caja">
+      <div class="grid2" style="margin-bottom:9px">
+        <div><label>Modo</label><select id="fModo">
+          <option value="acumulado">Timeline continuo (duración acumulada)</option>
+          <option value="huecos">Timeline continuo (detectar por huecos)</option>
+          <option value="reinicio">Cada clip reinicia en 0</option>
+          <option value="manual">Manual (IN a mano)</option>
+        </select></div>
+        <div><label>Hueco mínimo (s)</label><input id="fHueco" class="mono" value="${S.umbralHueco}"></div>
+      </div>
+      <button class="pri peq" id="bReparto">Aplicar reparto</button>
+      <div class="ayuda" style="margin-top:8px">
+        Si algún clip queda sin subtítulos o con los que no son, prueba el otro modo,
+        o pasa a <b>Manual</b> y escribe el IN de cada clip dentro de la secuencia.
+      </div>
+    </div>
+    <h2>IN de cada clip en la secuencia (s)</h2>
+    <div class="caja">
+      ${S.clips.map((c,i)=>`<div class="fila" style="margin-bottom:6px">
+        <span style="width:26px" class="mono">${pad(i+1)}</span>
+        <span style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(c.nombre)}</span>
+        <input class="mono inIni" data-i="${i}" value="${c.inicio.toFixed(3)}" style="width:100px">
+        <span class="pill">${c.subs.length} subs</span>
+      </div>`).join('') || '<div class="vacio">Sin clips.</div>'}
+      ${S.clips.length?'<button class="peq" id="bAplicarIN" style="margin-top:6px">Aplicar estos IN</button>':''}
+    </div>
+    <h2>General</h2>
+    <div class="caja">
+      <div class="grid2">
+        <div><label>FPS (para el timecode)</label>
+          <select id="fFps">${[23.976,24,25,29.97,30,50,60].map(f=>`<option value="${f}" ${f==S.fps?'selected':''}>${f}</option>`).join('')}</select></div>
+        <div><label>SRT cargado</label><input value="${esc(S.srtNombre||'—')}" readonly></div>
+      </div>
+    </div>
+    <h2>Atajos</h2>
+    <div class="caja ayuda">
+      <kbd>Espacio</kbd> play/pausa · <kbd>←</kbd><kbd>→</kbd> paso · <kbd>Shift</kbd>+flecha 5 s<br>
+      <kbd>E</kbd> nuevo error aquí · <kbd>G</kbd> segundo OK · <kbd>S</kbd> captura suelta<br>
+      <kbd>N</kbd>/<kbd>P</kbd> clip siguiente / anterior · <kbd>1</kbd>–<kbd>9</kbd> error del tipo N · <kbd>Esc</kbd> cerrar
+    </div>`;
+  $('#fModo').value = S.modoReparto;
+  $('#fFps').onchange = e=>{ S.fps=+e.target.value; pintarTodo(); };
+  $('#bReparto').onclick = ()=>{
+    S.modoReparto = $('#fModo').value;
+    S.umbralHueco = parseFloat($('#fHueco').value)||1.5;
+    repartir(); pintarTodo(); toast('Reparto aplicado');
+  };
+  const ba = $('#bAplicarIN');
+  if(ba) ba.onclick = ()=>{
+    $$('.inIni').forEach(inp=>{ S.clips[+inp.dataset.i].inicio = parseFloat(inp.value)||0; });
+    S.modoReparto='manual'; repartir(); pintarTodo(); toast('IN aplicados');
+  };
+}
+function irVista(v){
+  $$('.tab').forEach(t=>t.classList.toggle('act', t.dataset.v===v));
+  $$('.vista').forEach(x=>x.classList.toggle('act', x.id==='v-'+v));
+}
+
+/* ============================ GUARDAR / ABRIR AVANCE ============================ */
+function guardarAvance(){
+  leerCabecera();
+  const d = {
+    version:1, guardado:new Date().toISOString(),
+    proyecto:S.proyecto, cliente:S.cliente, revisor:S.revisor,
+    fps:S.fps, modoReparto:S.modoReparto, umbralHueco:S.umbralHueco,
+    srtNombre:S.srtNombre, cues:S.cues,
+    clips:S.clips.map(c=>({nombre:c.nombre, dur:c.dur, w:c.w, h:c.h, inicio:c.inicio,
+      subs:c.subs, errores:c.errores, segsOk:c.segsOk, revisado:c.revisado}))
+  };
+  const nom = `avance_${(S.proyecto||'qc').replace(/\W+/g,'-').toLowerCase()}_${new Date().toISOString().slice(0,10)}.json`;
+  descargar(nom, new Blob([JSON.stringify(d)], {type:'application/json'}));
+  toast('Avance guardado');
+}
+async function abrirAvanceArchivo(f){
+  try{
+    const d = JSON.parse(await f.text());
+    S.proyecto=d.proyecto||''; S.cliente=d.cliente||''; S.revisor=d.revisor||'';
+    S.fps=d.fps||30; S.modoReparto=d.modoReparto||'acumulado'; S.umbralHueco=d.umbralHueco||1.5;
+    S.srtNombre=d.srtNombre||''; S.cues=d.cues||[];
+    $('#fProyecto').value=S.proyecto; $('#fCliente').value=S.cliente; $('#fRevisor').value=S.revisor;
+    const previos = S.clips.slice();
+    S.clips = (d.clips||[]).map(c=>{
+      const match = previos.find(p=>p.nombre===c.nombre);
+      return {id:'c'+(S.contador++), nombre:c.nombre, url:match?match.url:null, dur:c.dur, w:c.w, h:c.h,
+              inicio:c.inicio, subs:c.subs||[], errores:c.errores||[], segsOk:c.segsOk||[], revisado:!!c.revisado};
+    });
+    S.actual = -1;
+    const conVideo = S.clips.findIndex(c=>c.url);
+    if(conVideo>=0) irAClip(conVideo, 0);
+    pintarTodo();
+    const faltan = S.clips.filter(c=>!c.url).length;
+    toast(faltan? `Avance cargado · faltan ${faltan} video(s), arrástralos` : 'Avance cargado');
+  }catch(err){ toast('Ese JSON no se pudo leer'); }
+}
+function leerCabecera(){
+  S.proyecto=$('#fProyecto').value.trim(); S.cliente=$('#fCliente').value.trim(); S.revisor=$('#fRevisor').value.trim();
+}
+/* ============================ INFORME HTML ============================ */
+function construirInforme(){
+  leerCabecera();
+  const fecha = new Date();
+  const todos = todosLosErrores();
+  const idInf = 'qc-' + (S.proyecto||'proyecto').replace(/\W+/g,'-').toLowerCase() + '-' + fecha.toISOString().slice(0,10);
+
+  const porSev = SEVS.map(s=>({...s, n2: todos.filter(e=>e.sev===s.id).length}));
+  const porTipo = TIPOS.map(t=>({...t, n2: todos.filter(e=>e.tipo===t.id).length})).filter(t=>t.n2);
+
+  const meta = todos.map(e=>({id:e.id, clip:e.clip.nombre, t:+e.t.toFixed(3),
+    tc:aTC(e.t), tipo:tipoDe(e.tipo).n, sev:e.sev, plano:e.plano, desc:e.desc, cita:e.cita}));
+
+  let secciones = '';
+  S.clips.forEach((c,i)=>{
+    if(!c.errores.length){
+      secciones += `<section class="clip limpio"><h2><span class="n">${pad(i+1)}</span> ${esc(c.nombre)}
+        <span class="ok-tag">Sin observaciones</span></h2></section>`;
+      return;
+    }
+    let cards = '';
+    c.errores.forEach(e=>{
+      const tp = tipoDe(e.tipo);
+      const sev = SEVS.find(s=>s.id===e.sev)||SEVS[0];
+      cards += `<article class="err sev-${e.sev}" data-id="${e.id}">
+        <div class="izq">
+          ${e.captura?`<img src="${e.captura}" alt="Captura del error en ${aTC(e.t)}" loading="lazy">`
+                     :`<div class="nocap">sin captura</div>`}
+          <div class="tcs">
+            <button class="copiar" data-tc="${aTC(e.t)}">${aTC(e.t)}</button>
+            <span title="tiempo dentro de la secuencia completa">seq ${aTC(c.inicio+e.t)}</span>
+          </div>
+        </div>
+        <div class="der">
+          <div class="cab">
+            <span class="tipo" style="--c:${tp.c}">${tp.n}</span>
+            <span class="sev">${sev.n}</span>
+            ${e.plano?`<span class="plano">${e.plano}</span>`:''}
+            ${e.palabra?`<span class="pal">«${esc(e.palabra)}»</span>`:''}
+          </div>
+          <p class="desc">${esc(e.desc)}</p>
+          ${e.cita?`<p class="cita">Subtítulo: «${esc(e.cita)}»</p>`:''}
+          <div class="resolver">
+            <label class="chk"><input type="checkbox" class="hecho" data-id="${e.id}"> Corregido</label>
+            <input class="nota" data-id="${e.id}" placeholder="Nota del editor (opcional)">
+          </div>
+        </div>
+      </article>`;
+    });
+    secciones += `<section class="clip"><h2><span class="n">${pad(i+1)}</span> ${esc(c.nombre)}
+      <span class="cuenta">${c.errores.length} observación${c.errores.length>1?'es':''}</span>
+      <span class="dur">${aMS(c.dur)}</span></h2>${cards}</section>`;
+  });
+
+  const css = `
+  :root{--bg:#0d1117;--bg2:#151d27;--bg3:#1d2733;--linea:#28323f;--txt:#e6edf3;--txt2:#93a1b1;--txt3:#63738a;--azul:#14a9ff;--ok:#2ea043;--amb:#ffaf14;--rojo:#f5384e}
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{background:var(--bg);color:var(--txt);font:15px/1.55 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;padding:0 0 70px}
+  .wrap{max-width:1000px;margin:0 auto;padding:0 20px}
+  header{background:linear-gradient(180deg,#101922,#0d1117);border-bottom:1px solid var(--linea);padding:26px 0 20px;margin-bottom:22px}
+  h1{font-size:24px;letter-spacing:-.3px}
+  h1 small{display:block;font-size:12px;font-weight:600;letter-spacing:2px;color:var(--azul);text-transform:uppercase;margin-bottom:5px}
+  .meta{color:var(--txt2);font-size:13px;margin-top:8px;display:flex;gap:14px;flex-wrap:wrap}
+  .tarjetas{display:flex;gap:9px;flex-wrap:wrap;margin:18px 0 6px}
+  .t{background:var(--bg2);border:1px solid var(--linea);border-radius:11px;padding:10px 15px;min-width:96px}
+  .t b{display:block;font-size:22px;line-height:1.2}
+  .t span{font-size:11px;color:var(--txt2);text-transform:uppercase;letter-spacing:.7px}
+  .t.crit b{color:var(--rojo)} .t.med b{color:var(--amb)} .t.men b{color:var(--txt2)}
+  .barraProg{height:8px;border-radius:8px;background:var(--bg3);overflow:hidden;margin:14px 0 4px}
+  .barraProg i{display:block;height:100%;background:var(--ok);width:0;transition:.3s}
+  .progTxt{font-size:12px;color:var(--txt2)}
+  .filtros{display:flex;gap:7px;margin:16px 0 20px;flex-wrap:wrap;align-items:center}
+  button{font:inherit;cursor:pointer;border:0;border-radius:8px;background:var(--bg3);color:var(--txt);padding:7px 13px}
+  button:hover{background:#27323f}
+  button.act{background:var(--azul);color:#04121d;font-weight:600}
+  section.clip{margin-bottom:26px}
+  section.clip h2{font-size:15px;display:flex;align-items:center;gap:10px;padding:9px 0 11px;border-bottom:1px solid var(--linea);margin-bottom:14px}
+  .n{background:var(--bg3);border-radius:7px;padding:2px 8px;font-size:12px;font-family:ui-monospace,monospace}
+  .cuenta{background:#3a1116;color:#ff8b98;border-radius:20px;padding:2px 10px;font-size:11px;font-weight:700}
+  .ok-tag{background:#16341f;color:#5fce80;border-radius:20px;padding:2px 10px;font-size:11px;font-weight:700}
+  .dur{margin-left:auto;color:var(--txt3);font-size:12px;font-family:ui-monospace,monospace}
+  .err{display:flex;gap:16px;background:var(--bg2);border:1px solid var(--linea);border-left:4px solid var(--rojo);border-radius:12px;padding:14px;margin-bottom:12px}
+  .err.sev-medio{border-left-color:var(--amb)} .err.sev-menor{border-left-color:var(--txt3)}
+  .err.resuelto{opacity:.55;border-left-color:var(--ok)}
+  .err.oculto{display:none}
+  .izq{width:190px;flex-shrink:0;display:flex;flex-direction:column;align-items:center}
+  .izq img{width:auto;max-width:100%;max-height:250px;border-radius:9px;background:#000;display:block;cursor:zoom-in}
+  .nocap{height:110px;width:100%;border:1px dashed var(--linea);border-radius:9px;display:flex;align-items:center;justify-content:center;color:var(--txt3);font-size:12px}
+  .tcs{display:flex;flex-direction:column;gap:4px;align-items:center;margin-top:8px;font-size:11px;color:var(--txt3);font-family:ui-monospace,monospace;text-align:center}
+  .copiar{padding:3px 9px;font-size:12px;font-family:ui-monospace,monospace;background:var(--bg3)}
+  .der{flex:1;min-width:0}
+  .cab{display:flex;gap:7px;flex-wrap:wrap;align-items:center;margin-bottom:8px}
+  .tipo{color:var(--c);border:1px solid var(--c);border-radius:20px;padding:2px 10px;font-size:11px;font-weight:700}
+  .sev,.plano,.pal{background:var(--bg3);border-radius:20px;padding:2px 10px;font-size:11px;color:var(--txt2)}
+  .desc{font-size:15px;line-height:1.55;white-space:pre-wrap}
+  .cita{color:var(--txt2);font-size:13px;font-style:italic;margin-top:6px}
+  .resolver{display:flex;gap:10px;align-items:center;margin-top:12px;flex-wrap:wrap}
+  .chk{display:flex;align-items:center;gap:7px;background:var(--bg3);border-radius:8px;padding:6px 12px;cursor:pointer;font-size:13px;white-space:nowrap;user-select:none}
+  .chk input{width:16px;height:16px;accent-color:var(--ok);cursor:pointer}
+  .nota{flex:1;min-width:180px;background:var(--bg);border:1px solid var(--linea);color:var(--txt);border-radius:8px;padding:6px 10px;font:inherit;font-size:13px;outline:none}
+  .nota:focus{border-color:var(--azul)}
+  footer{color:var(--txt3);font-size:12px;text-align:center;padding:26px 0 0;border-top:1px solid var(--linea);margin-top:30px}
+  #lupa{position:fixed;inset:0;background:rgba(0,0,0,.93);display:none;align-items:center;justify-content:center;z-index:99;cursor:zoom-out;padding:24px}
+  #lupa.on{display:flex} #lupa img{max-width:100%;max-height:100%;border-radius:10px}
+  #aviso{position:fixed;bottom:16px;left:50%;transform:translateX(-50%);background:var(--bg3);border:1px solid var(--linea);border-radius:9px;padding:9px 16px;font-size:13px;opacity:0;transition:.25s;pointer-events:none}
+  #aviso.on{opacity:1}
+  @media print{
+    body{background:#fff;color:#111} header{background:none} .filtros,.resolver,#lupa,#aviso,.copiar{display:none}
+    .err{break-inside:avoid;border:1px solid #ccc;background:#fff} .t{background:#fff;border:1px solid #ccc}
+    .desc,.cita{color:#111}
+  }
+  @media(max-width:720px){.err{flex-direction:column}.izq{width:100%}}`;
+
+  const js = `
+  var K='` + idInf + `';
+  var st={};
+  try{ st=JSON.parse(localStorage.getItem(K)||'{}'); }catch(e){ st={}; }
+  function guardar(){ try{ localStorage.setItem(K,JSON.stringify(st)); }catch(e){} }
+  function aviso(m){ var a=document.getElementById('aviso'); a.textContent=m; a.classList.add('on'); clearTimeout(a._t); a._t=setTimeout(function(){a.classList.remove('on');},1800); }
+  function refrescar(){
+    var arts=document.querySelectorAll('.err'), hechos=0;
+    for(var i=0;i<arts.length;i++){
+      var id=arts[i].getAttribute('data-id');
+      var s=st[id]||{};
+      arts[i].classList.toggle('resuelto', !!s.hecho);
+      if(s.hecho) hechos++;
+    }
+    var tot=arts.length;
+    document.getElementById('progBar').style.width = tot? (hechos/tot*100)+'%' : '0%';
+    document.getElementById('progTxt').textContent = hechos+' de '+tot+' corregidos';
+    filtrar();
+  }
+  var filtro='todos';
+  function filtrar(){
+    var arts=document.querySelectorAll('.err');
+    for(var i=0;i<arts.length;i++){
+      var h=arts[i].classList.contains('resuelto');
+      arts[i].classList.toggle('oculto', (filtro==='pend'&&h)||(filtro==='hechos'&&!h));
+    }
+    var secs=document.querySelectorAll('section.clip');
+    for(var j=0;j<secs.length;j++){
+      var vis=secs[j].querySelectorAll('.err:not(.oculto)').length;
+      var tiene=secs[j].querySelectorAll('.err').length;
+      secs[j].style.display = (tiene&&!vis)?'none':'';
+    }
+  }
+  document.addEventListener('change',function(ev){
+    var t=ev.target;
+    if(t.classList.contains('hecho')){
+      var id=t.getAttribute('data-id'); st[id]=st[id]||{}; st[id].hecho=t.checked; guardar(); refrescar();
+    }
+  });
+  document.addEventListener('input',function(ev){
+    var t=ev.target;
+    if(t.classList.contains('nota')){
+      var id=t.getAttribute('data-id'); st[id]=st[id]||{}; st[id].nota=t.value; guardar();
+    }
+  });
+  document.addEventListener('click',function(ev){
+    var t=ev.target;
+    if(t.classList.contains('copiar')){
+      var tc=t.getAttribute('data-tc');
+      if(navigator.clipboard) navigator.clipboard.writeText(tc);
+      aviso('Timecode copiado: '+tc);
+    }
+    if(t.tagName==='IMG'&&t.closest('.izq')){
+      document.getElementById('lupaImg').src=t.src; document.getElementById('lupa').classList.add('on');
+    }
+    if(t.id==='lupa'||t.id==='lupaImg'){ document.getElementById('lupa').classList.remove('on'); }
+    if(t.hasAttribute('data-f')){
+      filtro=t.getAttribute('data-f');
+      var bs=document.querySelectorAll('[data-f]');
+      for(var i=0;i<bs.length;i++) bs[i].classList.toggle('act', bs[i]===t);
+      filtrar();
+    }
+    if(t.id==='bExport'){
+      var META=JSON.parse(document.getElementById('META').textContent);
+      for(var i=0;i<META.length;i++){ var s=st[META[i].id]||{}; META[i].corregido=!!s.hecho; META[i].nota=s.nota||''; }
+      var b=new Blob([JSON.stringify({informe:K,fecha:new Date().toISOString(),items:META},null,2)],{type:'application/json'});
+      var a=document.createElement('a'); a.href=URL.createObjectURL(b); a.download=K+'-estado.json';
+      document.body.appendChild(a); a.click(); setTimeout(function(){a.remove();},1000);
+      aviso('Estado exportado');
+    }
+    if(t.id==='bTodos'){
+      var chs=document.querySelectorAll('.hecho');
+      for(var i=0;i<chs.length;i++){ chs[i].checked=true; st[chs[i].getAttribute('data-id')]={hecho:true,nota:(st[chs[i].getAttribute('data-id')]||{}).nota||''}; }
+      guardar(); refrescar(); aviso('Todo marcado como corregido');
+    }
+    if(t.id==='bReset'){
+      st={}; guardar();
+      var chs=document.querySelectorAll('.hecho'); for(var i=0;i<chs.length;i++) chs[i].checked=false;
+      var ns=document.querySelectorAll('.nota'); for(var i=0;i<ns.length;i++) ns[i].value='';
+      refrescar(); aviso('Estado reiniciado');
+    }
+  });
+  (function(){
+    var chs=document.querySelectorAll('.hecho');
+    for(var i=0;i<chs.length;i++){ var s=st[chs[i].getAttribute('data-id')]; if(s&&s.hecho) chs[i].checked=true; }
+    var ns=document.querySelectorAll('.nota');
+    for(var i=0;i<ns.length;i++){ var s2=st[ns[i].getAttribute('data-id')]; if(s2&&s2.nota) ns[i].value=s2.nota; }
+    refrescar();
+  })();`;
+
+  const html = `<!DOCTYPE html>
+<html lang="es"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Correcciones · ${esc(S.proyecto||'Proyecto')}</title>
+<style>${css}</style></head>
+<body>
+<header><div class="wrap">
+  <h1><small>Informe de revisión · ESENCIA</small>${esc(S.proyecto||'Proyecto')}</h1>
+  <div class="meta">
+    ${S.cliente?`<span>Cliente: <b>${esc(S.cliente)}</b></span>`:''}
+    ${S.revisor?`<span>Revisó: <b>${esc(S.revisor)}</b></span>`:''}
+    <span>${fecha.toLocaleDateString('es-ES',{day:'2-digit',month:'long',year:'numeric'})}</span>
+    <span>${S.clips.length} clip(s)</span>
+  </div>
+  <div class="tarjetas">
+    <div class="t"><b>${todos.length}</b><span>Observaciones</span></div>
+    <div class="t crit"><b>${porSev[0].n2}</b><span>Críticas</span></div>
+    <div class="t med"><b>${porSev[1].n2}</b><span>Medias</span></div>
+    <div class="t men"><b>${porSev[2].n2}</b><span>Menores</span></div>
+    ${porTipo.slice(0,4).map(t=>`<div class="t"><b>${t.n2}</b><span>${esc(t.n)}</span></div>`).join('')}
+  </div>
+  <div class="barraProg"><i id="progBar"></i></div>
+  <div class="progTxt" id="progTxt">0 de ${todos.length} corregidos</div>
+</div></header>
+<div class="wrap">
+  <div class="filtros">
+    <button data-f="todos" class="act">Todas</button>
+    <button data-f="pend">Pendientes</button>
+    <button data-f="hechos">Corregidas</button>
+    <span style="flex:1"></span>
+    <button id="bTodos">Marcar todo corregido</button>
+    <button id="bReset">Reiniciar</button>
+    <button id="bExport">Exportar estado</button>
+    <button onclick="window.print()">Imprimir / PDF</button>
+  </div>
+  ${secciones || '<div style="text-align:center;color:#63738a;padding:40px">Sin observaciones.</div>'}
+  <footer>
+    Marca cada punto como <b>Corregido</b> a medida que lo resuelves — se guarda en tu navegador.<br>
+    Cuando termines, pulsa <b>Exportar estado</b> y envíale el JSON a ${esc(S.revisor||'quien revisó')}.<br><br>
+    Generado con el Revisor QC · ESENCIA · ${fecha.toLocaleString('es-ES')}
+  </footer>
+</div>
+<div id="lupa"><img id="lupaImg" alt=""></div>
+<div id="aviso"></div>
+<script id="META" type="application/json">${JSON.stringify(meta).replace(/<\//g,'<\\/')}<\/script>
+<script>${js}<\/script>
+</body></html>`;
+  return {html, nombre:`informe_${(S.proyecto||'proyecto').replace(/\W+/g,'-').toLowerCase()}_${fecha.toISOString().slice(0,10)}.html`};
+}
+function generarInforme(){
+  if(!S.clips.length){ toast('No hay clips cargados'); return; }
+  const {html, nombre} = construirInforme();
+  descargar(nombre, new Blob([html], {type:'text/html;charset=utf-8'}));
+  const mb = (new Blob([html]).size/1048576).toFixed(1);
+  toast(`Informe generado (${mb} MB) → ${nombre}`);
+}
+
+/* ============================ EVENTOS ============================ */
+$('#bCargar').onclick = ()=>$('#inArchivos').click();
+$('#inArchivos').onchange = e=>{ if(e.target.files.length) cargarArchivos(e.target.files); e.target.value=''; };
+$('#bAbrir').onclick = ()=>$('#inAvance').click();
+$('#inAvance').onchange = e=>{ if(e.target.files[0]) abrirAvanceArchivo(e.target.files[0]); e.target.value=''; };
+$('#bGuardar').onclick = guardarAvance;
+$('#bInforme').onclick = generarInforme;
+$('#bError').onclick = ()=>nuevoError();
+$('#bSegOk').onclick = marcarSegOk;
+$('#bCaptura').onclick = ()=>{
+  const d = capturarFrame(1080);
+  if(!d){ toast('No hay video'); return; }
+  descargar(`captura_${(clipAct()||{}).nombre||'clip'}_${aTC(video.currentTime).replace(/:/g,'-')}.jpg`, dataURLaBlob(d));
+};
+$('#bPlay').onclick = ()=>{ if(!clipAct()) return; video.paused?video.play():video.pause(); };
+$('#bAtras').onclick = ()=>mover(-paso());
+$('#bAdelante').onclick = ()=>mover(paso());
+$('#fVel').onchange = e=>{ video.playbackRate = +e.target.value; };
+$('#bAyuda').onclick = ()=>{ irVista('ajustes'); $('#panel').scrollTop = $('#panel').scrollHeight; };
+
+$$('.tab').forEach(t=>t.onclick=()=>irVista(t.dataset.v));
+
+$('#barra').onclick = e=>{
+  const c = clipAct(); if(!c||!c.dur) return;
+  const r = e.currentTarget.getBoundingClientRect();
+  video.currentTime = Math.max(0, Math.min(c.dur-0.01, (e.clientX-r.left)/r.width*c.dur));
+};
+$('#cinta').onclick = e=>{
+  const s = e.target.closest('.seg'); if(!s) return;
+  video.currentTime = +s.dataset.s;
+};
+$('#velo').onclick = e=>{ if(e.target.id==='velo') cerrarModal(); };
+$('#lupa').onclick = ()=>$('#lupa').classList.remove('act');
+
+video.addEventListener('timeupdate', ()=>{ pintarTC(); pintarOverlay(); pintarCinta(); marcarSubActivo(); });
+video.addEventListener('seeked',    ()=>{ pintarTC(); pintarOverlay(); pintarCinta(); marcarSubActivo(); });
+video.addEventListener('play',  ()=>$('#bPlay').textContent='❚❚');
+video.addEventListener('pause', ()=>$('#bPlay').textContent='▶');
+video.addEventListener('loadedmetadata', ()=>{
+  const c = clipAct();
+  if(c && (!c.dur || Math.abs(c.dur-video.duration)>0.05) && isFinite(video.duration)){
+    c.dur = video.duration; c.w=video.videoWidth; c.h=video.videoHeight;
+    if(S.modoReparto!=='manual') repartir();
+  }
+  pintarTodo();
+});
+function marcarSubActivo(){
+  const c = clipAct(); if(!c) return;
+  const t = video.currentTime;
+  $$('#v-subs .sub').forEach(el=>{
+    const s = c.subs[+el.dataset.i];
+    el.classList.toggle('act', !!s && t>=s.ini-0.001 && t<=s.fin+0.001);
+  });
+  const a = $('#v-subs .sub.act');
+  if(a && $('#v-subs').classList.contains('act')) a.scrollIntoView({block:'nearest'});
+}
+
+/* drag & drop */
+['dragenter','dragover'].forEach(ev=>document.addEventListener(ev,e=>{e.preventDefault();e.dataTransfer.dropEffect='copy';}));
+document.addEventListener('drop', e=>{
+  e.preventDefault();
+  if(e.dataTransfer.files.length) cargarArchivos(e.dataTransfer.files);
+});
+
+/* teclado */
+document.addEventListener('keydown', e=>{
+  if(e.key==='Escape'){ cerrarModal(); $('#lupa').classList.remove('act'); return; }
+  const t = e.target.tagName;
+  if(t==='INPUT'||t==='TEXTAREA'||t==='SELECT') return;
+  if($('#velo').classList.contains('act')) return;
+  const k = e.key.toLowerCase();
+  if(e.key===' '){ e.preventDefault(); if(clipAct()) video.paused?video.play():video.pause(); }
+  else if(e.key==='ArrowLeft'){ e.preventDefault(); mover(e.shiftKey?-5:-paso()); }
+  else if(e.key==='ArrowRight'){ e.preventDefault(); mover(e.shiftKey?5:paso()); }
+  else if(k==='e'){ e.preventDefault(); nuevoError(); }
+  else if(k==='g'){ e.preventDefault(); marcarSegOk(); }
+  else if(k==='s'){ e.preventDefault(); $('#bCaptura').click(); }
+  else if(k==='n'){ e.preventDefault(); if(S.actual<S.clips.length-1) irAClip(S.actual+1,0); }
+  else if(k==='p'){ e.preventDefault(); if(S.actual>0) irAClip(S.actual-1,0); }
+  else if(/^[1-9]$/.test(e.key)){ e.preventDefault(); const tp=TIPOS[+e.key-1]; if(tp) nuevoError({tipo:tp.id}); }
+});
+
+['fProyecto','fCliente','fRevisor'].forEach(id=>$('#'+id).addEventListener('input', leerCabecera));
+window.addEventListener('beforeunload', e=>{
+  if(todosLosErrores().length){ e.preventDefault(); e.returnValue=''; }
+});
+
+pintarTodo();
+window.QC = {S, parseSubs, repartir, construirInforme, cargarArchivos, capturarFrame, nuevoError, aTC, aMS, irAClip, todosLosErrores};
+</script>
+</body>
+</html>
