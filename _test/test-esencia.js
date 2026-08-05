@@ -50,8 +50,8 @@ function chk(c, m, x) {
   chk(st.archivosDoc.every(a => /CLIP \d+\.mp4$/.test(a)), 'C) Título trae el nombre del .mp4 en los 10', st.archivosDoc.slice(0, 2));
   chk(st.ordenDoc.every(n => n > 0), 'B) Orden final leído en los 10', st.ordenDoc);
   chk(st.frasesDoc.filter(n => n > 0).length >= 7, 'A) Frases con timecode leídas', st.frasesDoc);
-  chk(st.modo === 'bloques', 'detecta solo el modo «un SRT por clip»', st.modo);
-  chk(st.bloques === 10, 'corta el .srt en 10 bloques', st.bloques);
+  chk(st.modo === 'guion', 'con el doc cargado alinea por guion', st.modo);
+  chk(st.bloques === 10, 'localiza los 10 clips dentro del .srt', st.bloques);
 
   console.log('\n2. CRUCE video ↔ doc ↔ bloque (el .srt viene DESORDENADO a propósito)');
   console.log('   orden de los bloques dentro del archivo: ' + JSON.stringify(esperado.ordenArchivo));

@@ -33,6 +33,9 @@ header h1{font-size:14px;font-weight:700;letter-spacing:.4px;white-space:nowrap}
 header h1 span{color:var(--azul)}
 header .sep{flex:1}
 header input.proy{width:190px;padding:5px 8px;font-size:13px}
+#rescate{display:none;align-items:center;gap:9px;padding:9px 14px;background:#1d2a1f;border-bottom:1px solid #2c4430;color:#a6e0b4;font-size:13px;flex-shrink:0}
+#rescate.act{display:flex}
+#guardado{font-size:11px;color:var(--txt3);white-space:nowrap}
 #main{flex:1;display:grid;grid-template-columns:50% 50%;min-height:0}
 #izq{display:flex;flex-direction:column;min-height:0;border-right:1px solid var(--linea);background:#07090c}
 #der{display:flex;flex-direction:column;min-height:0;overflow:hidden}
@@ -102,6 +105,9 @@ label{display:block;font-size:11px;color:var(--txt2);margin-bottom:3px;text-tran
 .pal:hover{background:var(--azul);color:#04121d}
 .pal.marcada{color:var(--azul);font-weight:600}
 .pal.fuera,.fuera{text-decoration:underline wavy #f5384e;text-underline-offset:3px}
+.pal.hl{font-weight:600}
+.sub.conAviso{border-color:#5c4a1b}
+.sub .aviso{color:var(--amb);font-size:11px;margin-top:5px}
 .sub .tc .sep{flex:1}
 button.cal{opacity:.35;font-size:10px;padding:2px 6px}
 .sub:hover button.cal,.sub.act button.cal{opacity:1}
@@ -148,6 +154,7 @@ kbd{background:var(--bg3);border:1px solid var(--linea);border-bottom-width:2px;
     <input class="proy" id="fRevisor" placeholder="Revisor" style="width:130px">
     <span class="sep"></span>
     <span class="pill" id="pillEstado">sin archivos</span>
+    <span id="guardado"></span>
     <button class="peq" id="bAyuda">Atajos</button>
     <button class="peq" id="bCargar">Cargar archivos</button>
     <button class="peq" id="bGuardar">Guardar avance</button>
@@ -156,6 +163,13 @@ kbd{background:var(--bg3);border:1px solid var(--linea);border-bottom-width:2px;
     <input type="file" id="inArchivos" multiple accept="video/*,.srt,.txt,.vtt,.json,.docx" hidden>
     <input type="file" id="inAvance" accept=".json" hidden>
   </header>
+
+  <div id="rescate">
+    <span id="rescateTxt"></span>
+    <span class="sep" style="flex:1"></span>
+    <button class="pri peq" id="bRescatar">Recuperar</button>
+    <button class="peq" id="bDescartar">Descartar</button>
+  </div>
 
   <div id="main">
     <div id="izq">
@@ -259,7 +273,7 @@ const S = {
   umbralHueco:1.5,
   clips:[],                  // {id,nombre,archivo,url,dur,inicio,subs:[],errores:[],segsOk:[],revisado:false}
   srtNombre:'', cues:[],     // cues del srt tal cual viene
-  doc:[], docNombre:'', bloques:0,
+  doc:[], docNombre:'', bloques:0, rangos:{}, colorResalte:'#14a9ff', umbralGuion:0.45,
   actual:-1,
   contador:1
 };
@@ -293,6 +307,28 @@ function tcASeg(t){
   if(!m) return null;
   return (+(m[1]||0))*3600 + (+m[2])*60 + (+m[3]) + (+m[4].padEnd(3,'0'))/1000;
 }
+/* Parte el texto de un cue en tramos {t, hl} para conservar el resalte que
+   Premiere exporta como <font color="#009df9">palabra</font>. */
+function trocearResalte(bruto){
+  const partes = [];
+  const rx = /<(font|b|u)\b[^>]*>([\s\S]*?)<\/\1>/gi;
+  let pos = 0, m;
+  while((m = rx.exec(bruto)) !== null){
+    if(m.index > pos) partes.push({t: limpiarTxt(bruto.slice(pos, m.index)), hl:false});
+    const col = (m[0].match(/color\s*=\s*"?(#[0-9a-fA-F]{3,8})"?/)||[])[1];
+    if(col) S.colorResalte = col;
+    partes.push({t: limpiarTxt(m[2]), hl:true});
+    pos = m.index + m[0].length;
+  }
+  if(pos < bruto.length) partes.push({t: limpiarTxt(bruto.slice(pos)), hl:false});
+  return partes.filter(x=>x.t !== '');
+}
+function limpiarTxt(t){ return t.replace(/<[^>]+>/g,''); }
+/* palabras resaltadas de un subtítulo */
+function resaltesDe(s){
+  return (s.partes||[]).filter(x=>x.hl).map(x=>x.t.trim()).filter(Boolean);
+}
+
 function parseSubs(txt){
   txt = txt.replace(/^﻿/,'').replace(/\r\n?/g,'\n');
   const cues=[];
@@ -307,11 +343,10 @@ function parseSubs(txt){
     if(!mt) continue;
     const ini = tcASeg(mt[1]), fin = tcASeg(mt[2]);
     if(ini==null||fin==null) continue;
-    const texto = ls.slice(i+1).join('\n')
-      .replace(/<[^>]+>/g,'')
-      .replace(/\{[^}]*\}/g,'')
-      .trim();
-    if(texto) cues.push({ini,fin,texto,idx});
+    const bruto = ls.slice(i+1).join('\n').replace(/\{[^}]*\}/g,'');
+    const partes = trocearResalte(bruto);
+    const texto = partes.map(x=>x.t).join('').replace(/[ \t]+/g,' ').replace(/ *\n */g,'\n').trim();
+    if(texto) cues.push({ini,fin,texto,partes,idx});
   }
   return cues;   // orden del archivo: con 10 SRT pegados, reordenar por tiempo los mezclaría
 }
@@ -323,11 +358,184 @@ const sFin = (c,s)=> s.fin + (c.sync||0);
 /* ---------- reparto del SRT entre los clips ---------- */
 function detectarModo(){
   if(!S.cues.length || !S.clips.length) return S.modoReparto;
-  // varios SRT pegados en un archivo: el índice o el tiempo vuelven atrás
+  if(S.doc.length) return 'guion';           // con documento, siempre alinear por contenido
   if(bloquesSRT(S.cues).length > 1) return 'bloques';
   const finSrt = S.cues[S.cues.length-1].fin;
   if(S.clips.length>1 && finSrt <= Math.max(...S.clips.map(c=>c.dur))+1) return 'reinicio';
   return 'acumulado';
+}
+
+/* ============================================================
+   ALINEAR CON EL GUION — el modo bueno cuando hay .docx.
+   Puntúa cada línea del .srt contra el guion de cada clip del documento
+   (pesando las palabras raras con IDF), suaviza el resultado en una ventana
+   de ±4 líneas y corta donde cambia el clip. Funciona igual si el .srt es
+   la secuencia entera, la entrevista o los .srt de cada clip pegados.
+   ============================================================ */
+function alinearConGuion(){
+  const D = S.doc, n = S.cues.length;
+  S.clips.forEach(c=>{ c.subs=[]; c.bloque=-1; c.coinc=0; });
+  if(!D.length || !n) return false;
+
+  const W = 4, MINCUES = 8, CORTE = 8.0;
+
+  // bolsas de palabras de cada guion + IDF (las palabras raras mandan)
+  const bolsas = D.map(d=> new Set(bolsa(textoDoc(d))));
+  const df = {};
+  bolsas.forEach(b=> b.forEach(w=>{ df[w] = (df[w]||0) + 1; }));
+  const N = bolsas.length;
+  const idf = w => Math.log((N + 1) / ((df[w]||0) + 0.5));
+
+  // 1. puntuar cada línea del .srt contra cada guion
+  const bruto = new Array(n);
+  for(let i = 0; i < n; i++){
+    const ws = bolsa(S.cues[i].texto);
+    const fila = new Float32Array(N);
+    let tot = 0; for(const w of ws) tot += idf(w);
+    if(tot > 0) for(let j = 0; j < N; j++){
+      let acc = 0;
+      for(const w of ws) if(bolsas[j].has(w)) acc += idf(w);
+      fila[j] = acc / tot;
+    }
+    bruto[i] = fila;
+  }
+  // 2. suavizar en ventana de ±W líneas y quedarse con el mejor clip
+  const asig = new Array(n).fill(-1), fuerza = new Array(n).fill(0);
+  const acum = new Float32Array(N);
+  for(let i = 0; i < n; i++){
+    const a = Math.max(0, i-W), z = Math.min(n, i+W+1);
+    acum.fill(0);
+    for(let k = a; k < z; k++){ const f = bruto[k]; for(let j = 0; j < N; j++) acum[j] += f[j]; }
+    let mejor = -1, ms = 0;
+    for(let j = 0; j < N; j++){ const v = acum[j]/(z-a); if(v > ms){ ms = v; mejor = j; } }
+    if(ms >= S.umbralGuion){ asig[i] = mejor; fuerza[i] = ms; }
+  }
+  // 3. rellenar huecos cortos entre dos tramos del mismo clip
+  for(let i = 0; i < n; i++){
+    if(asig[i] >= 0) continue;
+    let a = i-1; while(a >= 0 && asig[a] < 0) a--;
+    let b = i+1; while(b < n && asig[b] < 0) b++;
+    if(a >= 0 && b < n && asig[a] === asig[b]) asig[i] = asig[a];
+  }
+  // 4. rachas contiguas; de cada clip nos quedamos con la más larga
+  const rachas = [];
+  let cur = asig[0], desde = 0;
+  for(let i = 1; i <= n; i++){
+    const a = (i < n) ? asig[i] : -99;
+    if(a !== cur){
+      if(cur >= 0) rachas.push({j:cur, a:desde, b:i-1});
+      cur = a; desde = i;
+    }
+  }
+  const mejorDe = {};
+  rachas.forEach(r=>{
+    r.nc = r.b - r.a + 1;
+    let sc = 0; for(let k = r.a; k <= r.b; k++) sc += fuerza[k];
+    r.sc = sc / r.nc;
+    if(r.nc < MINCUES) return;
+    if(!mejorDe[r.j] || r.nc > mejorDe[r.j].nc) mejorDe[r.j] = r;
+  });
+  // 5. si dentro de una racha hay un silencio largo, quedarse con el trozo mayor
+  Object.keys(mejorDe).forEach(k=>{
+    const r = mejorDe[k];
+    const trozos = []; let t = [r.a];
+    for(let i = r.a + 1; i <= r.b; i++){
+      if(S.cues[i].ini - S.cues[i-1].fin > CORTE){ trozos.push(t); t = []; }
+      t.push(i);
+    }
+    trozos.push(t);
+    let big = trozos[0];
+    trozos.forEach(x=>{ if(x.length > big.length) big = x; });
+    r.a = big[0]; r.b = big[big.length-1]; r.nc = big.length;
+  });
+  // 6. si dos clips se pisan, gana el que puntúa más alto
+  const lista = Object.keys(mejorDe).map(k=>mejorDe[k]).sort((x,y)=>x.a-y.a);
+  for(let k = 1; k < lista.length; k++){
+    const p = lista[k-1], q = lista[k];
+    if(q.a <= p.b){ if(p.sc >= q.sc) q.a = p.b + 1; else p.b = q.a - 1; }
+  }
+  S.rangos = {};
+  lista.forEach(r=>{ if(r.b - r.a + 1 >= MINCUES) S.rangos[r.j] = {a:r.a, b:r.b, sc:r.sc, nc:r.nc}; });
+  aplicarRangos();
+  return true;
+}
+
+/* ============================================================
+   CRUZAR CADA VIDEO CON SU CLIP DEL DOCUMENTO
+   1) por el nombre del archivo (C) Título)
+   2) si no casa: por la duración del tramo que el .srt le asigna a ese clip
+   3) si aún queda ambigüedad: por orden, avisando en amarillo
+   Lo que cambies a mano manda siempre.
+   ============================================================ */
+function cruzarClips(){
+  const D = S.doc;
+  if(!D.length){ S.clips.forEach(c=>{ c.doc=null; c.docSim=0; c.comoCruzo=''; }); return; }
+  const usados = new Set();
+  S.clips.forEach(c=>{
+    if(c.docManual && c.doc && D.indexOf(c.doc)>=0){ usados.add(D.indexOf(c.doc)); c.comoCruzo='manual'; }
+    else { c.doc = null; c.docSim = 0; c.comoCruzo = ''; }
+  });
+
+  // 1) por nombre de archivo
+  const cand = [];
+  S.clips.filter(c=>!c.doc).forEach(c=>{
+    const nn = normNombre(c.nombre);
+    D.forEach((d,k)=>{
+      if(usados.has(k)) return;
+      const dn = normNombre(d.archivo || d.titulo);
+      const sc = (dn === nn) ? 1 : dice(bolsa(dn), bolsa(nn));
+      if(sc >= 0.5) cand.push([c, k, sc]);
+    });
+  });
+  cand.sort((a,b)=>b[2]-a[2]);
+  cand.forEach(x=>{
+    if(x[0].doc || usados.has(x[1])) return;
+    x[0].doc = D[x[1]]; x[0].docSim = x[2]; x[0].comoCruzo = 'nombre'; usados.add(x[1]);
+  });
+
+  // 2) los que no casaron por nombre: por duración + orden.
+  //    Los clips salen de la secuencia en orden y los archivos vienen numerados igual,
+  //    así que emparejamos de forma monótona: nunca cruza dos por delante.
+  const R = S.rangos || {};
+  const vidsLibres = S.clips.filter(c=>!c.doc);                       // ya en orden natural
+  const rangLibres = Object.keys(R).map(Number).filter(k=>!usados.has(k))
+                       .sort((x,y)=>R[x].a - R[y].a);                  // en orden del .srt
+  if(vidsLibres.length && rangLibres.length){
+    const durT = k=>{ const r = R[k]; return S.cues[r.b].fin - S.cues[r.a].ini; };
+    const sim = (c,k)=>{
+      const dv = c.dur || 0, dt = durT(k);
+      if(!dv || !dt) return 0.5;                                       // sin duración: sólo cuenta el orden
+      return 1 - Math.abs(dv - dt) / Math.max(dv, dt);
+    };
+    emparejarMonotono(vidsLibres, rangLibres, sim, 0.45).forEach(par=>{
+      const c = vidsLibres[par[0]], k = rangLibres[par[1]];
+      if(c.doc || usados.has(k)) return;
+      c.doc = D[k]; c.docSim = par[2];
+      c.comoCruzo = par[2] >= 0.85 ? 'duración' : 'orden';
+      usados.add(k);
+    });
+  }
+}
+
+/* aplica los tramos ya calculados (rápido: no recalcula la alineación) */
+function aplicarRangos(){
+  const D = S.doc, R = S.rangos || {};
+  S.clips.forEach(c=>{ c.subs=[]; c.bloque=-1; c.coinc=0; c._bolsa=null; });
+  cruzarClips();
+  S.bloques = Object.keys(R).length;
+  S.clips.forEach(c=>{
+    if(!c.doc) return;
+    const r = R[D.indexOf(c.doc)];
+    if(!r) return;
+    const trozo = S.cues.slice(r.a, r.b + 1);
+    if(!trozo.length) return;
+    const base = trozo[0].ini > 5 ? trozo[0].ini : 0;
+    c.inicio = base;
+    c.bloque = r.a;
+    c.coinc  = r.sc;
+    c.subs = trozo.map(q=>({ini:+(q.ini-base).toFixed(3), fin:+(q.fin-base).toFixed(3),
+                            texto:q.texto, partes:q.partes, marcadas:[]}));
+  });
 }
 
 /* Un bloque de SRT por clip, emparejado POR CONTENIDO usando el .docx como puente:
@@ -336,22 +544,8 @@ function asignarPorBloques(){
   const bl = bloquesSRT(S.cues);
   S.clips.forEach(c=>{ c.subs=[]; c.bloque=-1; c.coinc=0; });
   S.bloques = bl.length;
-
-  if(S.doc.length){
-    const usados = new Set();
-    S.clips.forEach(c=>{
-      const nn = normNombre(c.nombre);
-      let mejor=-1, ms=0;
-      S.doc.forEach((d,k)=>{
-        if(usados.has(k)) return;
-        const dn = normNombre(d.archivo || d.titulo);
-        const sc = (dn === nn) ? 1 : dice(bolsa(dn), bolsa(nn));
-        if(sc > ms){ ms = sc; mejor = k; }
-      });
-      if(mejor>=0 && ms>=0.5){ c.doc = S.doc[mejor]; c.docSim = ms; usados.add(mejor); }
-      else { c.doc = null; c.docSim = 0; }
-    });
-  } else S.clips.forEach(c=>{ c.doc=null; c.docSim=0; });
+  S.rangos = {};
+  cruzarClips();
 
   const izq = S.clips.map(c => c.doc ? bolsa(textoDoc(c.doc)) : []);
   const der = bl.map(b => bolsa(b.map(q=>q.texto).join(' ')));
@@ -366,7 +560,7 @@ function asignarPorBloques(){
     c.bloque = j;
     c.coinc  = mapa[i] ? mapa[i].s : 0;
     c.inicio = 0;
-    c.subs = bl[j].map(q=>({ini:q.ini, fin:q.fin, texto:q.texto, marcadas:[]}));
+    c.subs = bl[j].map(q=>({ini:q.ini, fin:q.fin, texto:q.texto, partes:q.partes, marcadas:[]}));
   });
 }
 function textoDoc(d){
@@ -392,6 +586,7 @@ function repartir(){
   if(!S.clips.length) return;
   const modo = S.modoReparto;
 
+  if(modo==='guion'){ if(alinearConGuion()) return; asignarPorBloques(); return; }
   if(modo==='bloques'){ asignarPorBloques(); return; }
 
   if(modo==='acumulado'){
@@ -539,6 +734,40 @@ function bloquesSRT(cues){
   return bl;
 }
 
+/* ---------- emparejado que respeta el orden de las dos listas ----------
+   Los clips salen de la secuencia en orden y los archivos vienen numerados en ese
+   mismo orden, así que la asignación buena es monótona. Programación dinámica tipo
+   alineamiento: permite saltarse elementos de cualquiera de los dos lados. */
+function emparejarMonotono(izq, der, sim, minimo){
+  const n = izq.length, m = der.length;
+  if(!n || !m) return [];
+  const dp = [], de = [];
+  for(let i = 0; i <= n; i++){ dp.push(new Float64Array(m+1)); de.push(new Int8Array(m+1)); }
+  const cache = [];
+  for(let i = 0; i < n; i++){
+    cache.push(new Float64Array(m));
+    for(let j = 0; j < m; j++) cache[i][j] = sim(izq[i], der[j]);
+  }
+  for(let i = 1; i <= n; i++){
+    for(let j = 1; j <= m; j++){
+      const sc = cache[i-1][j-1];
+      const diag = (sc >= minimo) ? dp[i-1][j-1] + sc : -Infinity;
+      const arr = dp[i-1][j], iz = dp[i][j-1];
+      if(diag >= arr && diag >= iz){ dp[i][j] = diag; de[i][j] = 0; }
+      else if(arr >= iz){ dp[i][j] = arr; de[i][j] = 1; }
+      else { dp[i][j] = iz; de[i][j] = 2; }
+    }
+  }
+  const res = [];
+  let i = n, j = m;
+  while(i > 0 && j > 0){
+    if(de[i][j] === 0){ res.push([i-1, j-1, cache[i-1][j-1]]); i--; j--; }
+    else if(de[i][j] === 1) i--;
+    else j--;
+  }
+  return res.reverse();
+}
+
 /* ---------- emparejado voraz y único ---------- */
 function emparejarVoraz(izq, der, sim, umbral){
   const pares = [];
@@ -597,32 +826,56 @@ async function cargarArchivos(lista){
     S.srtNombre = subs[0].name;
     if(!S.cues.length) toast('Ese archivo de subtítulos no tenía bloques legibles');
   }
+  let reenganchados = 0;
   if(vids.length){
     vids.sort((a,b)=>natSort(a.name,b.name));
     const nuevos=[];
     for(const f of vids){
       const url = URL.createObjectURL(f);
       const meta = await duracionDe(url);
+      // si ese clip ya está en la sesión (recuperada o de un avance), solo le devolvemos el vídeo
+      const ya = S.clips.find(c=>c.nombre===f.name);
+      if(ya){
+        if(ya.url) URL.revokeObjectURL(ya.url);
+        ya.url = url;
+        if(meta.dur){ ya.dur = meta.dur; ya.w = meta.w; ya.h = meta.h; }
+        reenganchados++;
+        continue;
+      }
       nuevos.push({
         id:'c'+(S.contador++), nombre:f.name, url, dur:meta.dur, w:meta.w, h:meta.h,
-        inicio:0, sync:0, bloque:-1, coinc:0, doc:null, docSim:0,
+        inicio:0, sync:0, bloque:-1, coinc:0, doc:null, docSim:0, comoCruzo:'', docManual:false,
         subs:[], errores:[], segsOk:[], revisado:false
       });
     }
-    S.clips = S.clips.concat(nuevos);
-    S.clips.sort((a,b)=>natSort(a.nombre,b.nombre));
+    if(nuevos.length){
+      S.clips = S.clips.concat(nuevos);
+      S.clips.sort((a,b)=>natSort(a.nombre,b.nombre));
+    }
 
   }
-  if(S.clips.length && S.cues.length){
-    S.modoReparto = detectarModo();
-    if($('#fModo')) $('#fModo').value = S.modoReparto;
+  const soloReenganche = reenganchados && !subs.length && !docs.length &&
+                          S.clips.some(c=>c.subs.length);
+  if(!soloReenganche){
+    if(S.clips.length && S.cues.length){
+      S.modoReparto = detectarModo();
+      if($('#fModo')) $('#fModo').value = S.modoReparto;
+    }
+    repartir();
   }
-  repartir();
-  if(S.actual<0 && S.clips.length) irAClip(0);
+  if(S.actual<0 && S.clips.length){
+    const i = S.clips.findIndex(c=>c.url);
+    if(i>=0) irAClip(i, 0);
+  }
   pintarTodo();
-  const conDoc = S.clips.filter(c=>c.doc).length;
-  const conSub = S.clips.filter(c=>c.subs.length).length;
-  toast(`${S.clips.length} clip(s) · ${conSub} con subtítulos` + (S.doc.length?` · ${conDoc}/${S.clips.length} cruzados con el doc`:''));
+  if(soloReenganche){
+    const faltan = S.clips.filter(c=>!c.url).length;
+    toast(`${reenganchados} vídeo(s) reenganchados` + (faltan?` · faltan ${faltan}`:' · sesión completa'));
+  }else{
+    const conDoc = S.clips.filter(c=>c.doc).length;
+    const conSub = S.clips.filter(c=>c.subs.length).length;
+    toast(`${S.clips.length} clip(s) · ${conSub} con subtítulos` + (S.doc.length?` · ${conDoc}/${S.clips.length} cruzados con el doc`:''));
+  }
 }
 
 /* ============================ VIDEO ============================ */
@@ -630,6 +883,12 @@ const clipAct = () => S.clips[S.actual] || null;
 
 function irAClip(i, t){
   if(i<0 || i>=S.clips.length) return;
+  if(!S.clips[i].url){
+    S.actual = i; pintarTodo();
+    video.hidden = true; $('#sinVideo').style.display='';
+    $('#sinVideo').innerHTML = `Falta el vídeo de <b>${esc(S.clips[i].nombre)}</b>.<br>Arrástralo y sigues donde lo dejaste.`;
+    return;
+  }
   const cambia = i !== S.actual;
   S.actual = i;
   const c = S.clips[i];
@@ -664,7 +923,11 @@ function pintarOverlay(){
   const s = subActual();
   const o = $('#subOverlay');
   if(!s){ o.innerHTML=''; return; }
-  o.innerHTML = '<span>'+s.texto.split('\n').map(esc).join('<br>')+'</span>';
+  const col = S.colorResalte || '#14a9ff';
+  const cuerpo = (s.partes && s.partes.length)
+    ? s.partes.map(x=> x.hl ? `<b style="color:${col};font-weight:600">${esc(x.t)}</b>` : esc(x.t)).join('')
+    : esc(s.texto);
+  o.innerHTML = '<span>'+cuerpo+'</span>';
 }
 function pintarTC(){
   const c = clipAct(); if(!c) return;
@@ -819,8 +1082,36 @@ function todosLosErrores(){
   S.clips.forEach((c,i)=>c.errores.forEach(e=>out.push({...e, clip:c, ci:i})));
   return out;
 }
+/* ---------- chequeo del resalte (regla ESENCIA: una palabra, sin abusar) ---------- */
+function avisosResalte(c){
+  const av = c.subs.map(()=>[]);
+  let racha = 0;
+  c.subs.forEach((s,i)=>{
+    const r = resaltesDe(s);
+    if(r.length){
+      racha++;
+      const pal = r.join(' ').trim().split(/\s+/).length;
+      if(pal > 1) av[i].push(`resalte de ${pal} palabras`);
+      if(r.length > 1) av[i].push('dos resaltes en la misma línea');
+      if(racha >= 4) av[i].push(`${racha} líneas seguidas con resalte`);
+    } else racha = 0;
+  });
+  return av;
+}
+function statsResalte(c){
+  let con = 0, multi = 0, maxRacha = 0, racha = 0;
+  c.subs.forEach(s=>{
+    const r = resaltesDe(s);
+    if(r.length){
+      con++; racha++; maxRacha = Math.max(maxRacha, racha);
+      if(r.join(' ').trim().split(/\s+/).length > 1) multi++;
+    } else racha = 0;
+  });
+  return {con, multi, maxRacha, total:c.subs.length};
+}
+
 /* ============================ PINTAR PANELES ============================ */
-function pintarTodo(){ pintarClips(); pintarSubs(); pintarGuion(); pintarErrores(); pintarAjustes(); pintarCinta(); pintarBarra(); pintarTC(); pintarOverlay(); pintarCabecera(); }
+function pintarTodo(){ autoGuardar(); pintarClips(); pintarSubs(); pintarGuion(); pintarErrores(); pintarAjustes(); pintarCinta(); pintarBarra(); pintarTC(); pintarOverlay(); pintarCabecera(); }
 
 function pintarCabecera(){
   $('#nClips').textContent = S.clips.length;
@@ -867,7 +1158,7 @@ function pintarClips(){
       <div class="num">${pad(i+1)}</div>
       <div class="nom">
         <div>${esc(c.nombre)}</div>
-        <div class="mono">${aMS(c.dur)} · ${c.subs.length} subs${c.doc?` · CLIP ${esc(c.doc.num)} · guion ${Math.round(c.coinc*100)}%`:(S.doc.length?' · <span style="color:#ff8b98">sin guion</span>':'')}${c.sync?` · sync ${c.sync>0?'+':''}${c.sync.toFixed(2)}s`:''}</div>
+        <div class="mono">${aMS(c.dur)} · ${c.subs.length} subs${c.subs.length?` · ${statsResalte(c).con} resaltes`:''}${c.doc?` · CLIP ${esc(c.doc.num)} · guion ${Math.round(c.coinc*100)}%${c.comoCruzo==='orden'?' · <span style="color:var(--amb)">cruzado por orden</span>':''}`:(S.doc.length?' · <span style="color:#ff8b98">sin guion</span>':'')}${c.sync?` · sync ${c.sync>0?'+':''}${c.sync.toFixed(2)}s`:''}</div>
       </div>
       <div class="est">${badge}</div>
     </div>`;
@@ -894,28 +1185,40 @@ function pintarSubs(){
   }
   const t = video.currentTime||0;
   const bd = bolsaDoc(c);
+  const col = S.colorResalte || '#14a9ff';
+  const av = avisosResalte(c);
+  const rs = statsResalte(c);
   let fuera = 0, total = 0;
 
   let filas = '';
   c.subs.forEach((s,i)=>{
     const act = t>=sIni(c,s)-0.001 && t<=sFin(c,s)+0.001;
-    const palabras = s.texto.split(/(\s+)/).map(pz=>{
-      if(/^\s+$/.test(pz)) return pz;
-      const limpio = norm(pz).replace(/[^a-z0-9ñ]/g,'');
-      let cls = 'pal';
-      if(bd && limpio.length>2){
-        total++;
-        if(!bd.has(limpio)){ cls += ' fuera'; fuera++; }
-      }
-      return `<span class="${cls}" data-i="${i}" data-p="${esc(pz)}">${esc(pz)}</span>`;
-    }).join('');
-    filas += `<div class="sub ${act?'act':''}" data-i="${i}">
+    const tramos = (s.partes && s.partes.length) ? s.partes : [{t:s.texto, hl:false}];
+    let palabras = '';
+    tramos.forEach(tr=>{
+      tr.t.split(/(\s+)/).forEach(pz=>{
+        if(pz === '') return;
+        if(/^\s+$/.test(pz)){ palabras += pz.indexOf('\n')>=0 ? '<br>' : pz; return; }
+        const limpio = norm(pz).replace(/[^a-z0-9ñ]/g,'');
+        let cls = 'pal';
+        if(tr.hl) cls += ' hl';
+        if(bd && limpio.length>2){
+          total++;
+          if(!bd.has(limpio)){ cls += ' fuera'; fuera++; }
+        }
+        palabras += `<span class="${cls}" data-i="${i}" data-p="${esc(pz)}"${tr.hl?` style="color:${col}"`:''}>${esc(pz)}</span>`;
+      });
+    });
+    const avisos = av[i].length
+      ? `<div class="aviso">⚠ ${av[i].map(esc).join(' · ')}</div>` : '';
+    filas += `<div class="sub ${act?'act':''}${av[i].length?' conAviso':''}" data-i="${i}">
       <div class="tc mono"><span>${aTC(sIni(c,s))}</span><span>→</span><span>${aTC(sFin(c,s))}</span>
         <span style="color:var(--txt3)">${(s.fin-s.ini).toFixed(2)}s</span>
         <span class="sep" style="flex:1"></span>
         <button class="peq cal" data-cal="${i}" title="Esta línea empieza justo aquí (calibra el sync del clip)">empieza aquí</button>
       </div>
       <div class="txt">${palabras}</div>
+      ${avisos}
     </div>`;
   });
 
@@ -923,14 +1226,20 @@ function pintarSubs(){
   let cab = `<div class="caja" style="padding:9px 11px;margin-bottom:11px">
     <div class="fila">
       ${c.doc ? `<span class="pill" style="color:${c.coinc>0.45?'#5fce80':'#ffaf14'}">guion ${pct}%</span>` : '<span class="pill">sin guion</span>'}
-      ${bd ? `<span class="pill" title="palabras del subtítulo que no están en el guion">${fuera} palabra(s) fuera de ${total}</span>` : ''}
+      ${bd ? `<span class="pill" title="palabras del subtítulo que no están en el guion">${fuera} fuera de ${total}</span>` : ''}
+      <span class="pill" style="color:${rs.con?col:'#ff8b98'}" title="líneas con palabra resaltada">${rs.con}/${rs.total} con resalte</span>
+      ${rs.multi?`<span class="pill" style="color:var(--amb)">${rs.multi} con más de 1 palabra</span>`:''}
+      ${rs.maxRacha>=4?`<span class="pill" style="color:var(--amb)">racha de ${rs.maxRacha}</span>`:''}
       <span class="sep" style="flex:1"></span>
       <label style="margin:0;text-transform:none;letter-spacing:0">Sync</label>
       <input id="fSync" class="mono" value="${(c.sync||0).toFixed(3)}" style="width:78px;padding:4px 7px">
       <button class="peq" id="bSync0">0</button>
       <button class="peq" id="bSyncTodos">a todos</button>
     </div>
-    ${bd ? '<div class="ayuda" style="margin-top:7px">Lo <span class="fuera">subrayado en rojo</span> no está en el guion aprobado: o el editor escribió de más, o Premiere transcribió mal.</div>' : ''}
+    <div class="ayuda" style="margin-top:7px">
+      ${bd ? 'Lo <span class="fuera">subrayado en rojo</span> no está en el guion aprobado. ' : ''}
+      ${rs.con ? `Lo que va <b style="color:${col}">en color</b> es el resalte que trae el .srt.` : 'Este .srt no trae ninguna palabra resaltada.'}
+    </div>
   </div>`;
 
   v.innerHTML = cab + `<div class="ayuda" style="margin-bottom:9px">Clic en la línea para saltar ahí · clic en una <b>palabra</b> para reportarla · <b>empieza aquí</b> cuadra el sync.</div>` + filas;
@@ -972,11 +1281,17 @@ function pintarGuion(){
     <div class="caja">
       <div class="fila" style="margin-bottom:8px">
         <span class="pill">archivo: ${esc(d.archivo||'—')}</span>
-        <span class="pill" style="color:${c.docSim>=0.99?'#5fce80':'#ffaf14'}">nombre ${Math.round(c.docSim*100)}%</span>
+        <span class="pill" style="color:${c.comoCruzo==='nombre'?'#5fce80':'var(--amb)'}">cruzado por ${esc(c.comoCruzo||'—')} ${c.docSim?Math.round(c.docSim*100)+'%':''}</span>
         <span class="pill" style="color:${c.coinc>0.45?'#5fce80':'#ffaf14'}">texto ${Math.round(c.coinc*100)}%</span>
       </div>
-      <div class="ayuda">Así se cruzó: el nombre del .mp4 con el <b>C) Título</b> del doc, y el texto del
-      <b>B) Orden final</b> con el bloque del .srt.</div>
+      <div class="ayuda">${c.comoCruzo==='nombre'
+        ? 'Cruzado por el nombre del archivo contra el <b>C) Título</b> del doc.'
+        : c.comoCruzo==='duración'
+          ? 'El nombre no casaba, así que se cruzó <b>por la duración</b> del tramo que le toca en el .srt.'
+          : c.comoCruzo==='manual'
+            ? 'Lo asignaste tú a mano.'
+            : 'Cruzado <b style="color:var(--amb)">por orden</b> — verifícalo leyendo el guion de abajo.'}
+        Después el texto del <b>B) Orden final</b> localiza su tramo dentro del .srt.</div>
     </div>
     <h2>B) Orden final del vídeo</h2>
     ${d.orden.map((o,i)=>`<div class="caja" style="padding:10px"><b style="color:var(--azul)">${i+1}.</b> ${esc(o)}</div>`).join('') || '<div class="vacio">—</div>'}
@@ -1069,13 +1384,14 @@ function pintarAjustes(){
     <div class="caja">
       <div class="grid2" style="margin-bottom:9px">
         <div><label>Modo</label><select id="fModo">
-          <option value="bloques">Un SRT por clip pegados en un archivo (recomendado)</option>
+          <option value="guion">Alinear con el documento (recomendado)</option>
+          <option value="bloques">Un SRT por clip pegados en un archivo</option>
           <option value="acumulado">Timeline continuo (duración acumulada)</option>
           <option value="huecos">Timeline continuo (detectar por huecos)</option>
           <option value="reinicio">Cada clip reinicia en 0</option>
           <option value="manual">Manual (IN a mano)</option>
         </select></div>
-        <div><label>Hueco mínimo (s)</label><input id="fHueco" class="mono" value="${S.umbralHueco}"></div>
+        <div><label>Exigencia del cruce</label><input id="fUmbral" class="mono" value="${S.umbralGuion}" title="0.45 por defecto. Súbelo si mezcla clips, bájalo si deja clips sin subtítulos"></div>
       </div>
       <button class="pri peq" id="bReparto">Aplicar reparto</button>
       <div class="ayuda" style="margin-top:8px">
@@ -1088,12 +1404,31 @@ function pintarAjustes(){
       <div class="fila" style="margin-bottom:8px">
         <span class="pill">doc: ${esc(S.docNombre||'—')}</span>
         <span class="pill">${S.doc.length} clip(s) en el doc</span>
-        <span class="pill">${S.bloques||0} bloque(s) en el .srt</span>
+        <span class="pill">${S.bloques||0} tramo(s) en el .srt</span>
         <span class="pill">${S.clips.filter(c=>c.doc).length}/${S.clips.length} cruzados</span>
+        <span class="pill">${S.clips.filter(c=>c.subs.length).length}/${S.clips.length} con subtítulos</span>
       </div>
-      <div class="ayuda">El puente es el nombre del archivo: el <b>C) Título</b> del doc tiene que ser
-      igual que el nombre del .mp4. Después el texto del <b>B) Orden final</b> busca su bloque en el .srt.</div>
+      <div class="ayuda">Primero por el nombre del archivo, y si no casa <b>por la duración</b> del tramo
+      que le toca en el .srt. Si algo quedó por <span style="color:var(--amb)">orden</span>, verifícalo:
+      cámbialo en el desplegable y se recoloca todo.</div>
     </div>
+    ${S.doc.length ? `<div class="caja" style="padding:9px">
+      ${S.clips.map((c,i)=>{
+        const como = c.comoCruzo||'';
+        const col = como==='nombre'?'#5fce80':(como==='duración'?'var(--azul)':(como==='manual'?'var(--rosa)':(como==='orden'?'var(--amb)':'#ff8b98')));
+        return `<div class="fila" style="margin-bottom:6px">
+          <span style="width:24px" class="mono">${pad(i+1)}</span>
+          <span style="flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(c.nombre)}</span>
+          <span class="pill mono" style="color:${col}">${como||'sin cruzar'}</span>
+          <select class="selDoc" data-i="${i}" style="width:280px">
+            <option value="">— ninguno —</option>
+            ${S.doc.map((d,k)=>`<option value="${k}" ${c.doc===d?'selected':''}>CLIP ${esc(d.num)} · ${esc((d.archivo||d.titulo).slice(0,46))}</option>`).join('')}
+          </select>
+          <span class="pill">${c.subs.length} subs</span>
+        </div>`;
+      }).join('')}
+      <button class="peq" id="bAutoCruce" style="margin-top:6px">Volver a cruzar solo</button>
+    </div>` : ''}
 
     <h2>Sync e IN por clip</h2>
     <div class="caja">
@@ -1107,6 +1442,15 @@ function pintarAjustes(){
       ${S.clips.length?'<button class="peq" id="bAplicarIN" style="margin-top:6px">Aplicar IN y sync</button>':''}
       <div class="ayuda" style="margin-top:7px">Con el modo por bloques el IN no se usa: cada .srt ya viene en el tiempo de su clip. Lo que ajustas es el <b>sync</b>.</div>
     </div>
+    <h2>Autoguardado</h2>
+    <div class="caja">
+      <div class="ayuda" style="margin-bottom:8px">Todo lo que marcas se guarda solo en este navegador
+      (errores, capturas y segundos revisados). Si se recarga la página o cierras sin querer, al volver
+      te ofrece recuperarlo. Los vídeos hay que arrastrarlos otra vez: se reenganchan por nombre y sigues
+      donde lo dejaste.</div>
+      <button class="peq" id="bBorrarAuto">Borrar el autoguardado</button>
+    </div>
+
     <h2>General</h2>
     <div class="caja">
       <div class="grid2">
@@ -1123,9 +1467,19 @@ function pintarAjustes(){
     </div>`;
   $('#fModo').value = S.modoReparto;
   $('#fFps').onchange = e=>{ S.fps=+e.target.value; pintarTodo(); };
+  const bba = $('#bBorrarAuto');
+  if(bba) bba.onclick = async ()=>{ await BD.borrar(); toast('Autoguardado borrado'); };
+  $$('.selDoc').forEach(sel=>sel.onchange = e=>{
+    const c = S.clips[+sel.dataset.i], v = e.target.value;
+    if(v === ''){ c.doc = null; c.docManual = false; }
+    else { c.doc = S.doc[+v]; c.docManual = true; }
+    aplicarRangos(); pintarTodo(); toast(v===''?'Clip desvinculado':'Reasignado a mano');
+  });
+  const bac = $('#bAutoCruce');
+  if(bac) bac.onclick = ()=>{ S.clips.forEach(c=>{ c.docManual=false; }); aplicarRangos(); pintarTodo(); toast('Cruce recalculado'); };
   $('#bReparto').onclick = ()=>{
     S.modoReparto = $('#fModo').value;
-    S.umbralHueco = parseFloat($('#fHueco').value)||1.5;
+    S.umbralGuion = Math.min(0.9, Math.max(0.15, parseFloat($('#fUmbral').value)||0.45));
     repartir(); pintarTodo(); toast('Reparto aplicado');
   };
   const ba = $('#bAplicarIN');
@@ -1144,44 +1498,123 @@ function irVista(v){
 }
 
 /* ============================ GUARDAR / ABRIR AVANCE ============================ */
-function guardarAvance(){
+function datosAvance(){
   leerCabecera();
-  const d = {
-    version:1, guardado:new Date().toISOString(),
+  return {
+    version:2, guardado:new Date().toISOString(),
     proyecto:S.proyecto, cliente:S.cliente, revisor:S.revisor,
-    fps:S.fps, modoReparto:S.modoReparto, umbralHueco:S.umbralHueco,
-    srtNombre:S.srtNombre, cues:S.cues, doc:S.doc, docNombre:S.docNombre, bloques:S.bloques,
+    fps:S.fps, modoReparto:S.modoReparto, umbralHueco:S.umbralHueco, umbralGuion:S.umbralGuion,
+    colorResalte:S.colorResalte,
+    srtNombre:S.srtNombre, cues:S.cues, doc:S.doc, docNombre:S.docNombre,
+    bloques:S.bloques, rangos:S.rangos,
     clips:S.clips.map(c=>({nombre:c.nombre, dur:c.dur, w:c.w, h:c.h, inicio:c.inicio,
       sync:c.sync||0, bloque:c.bloque, coinc:c.coinc, docNum:c.doc?c.doc.num:null, docSim:c.docSim||0,
+      comoCruzo:c.comoCruzo||'', docManual:!!c.docManual,
       subs:c.subs, errores:c.errores, segsOk:c.segsOk, revisado:c.revisado}))
   };
+}
+function guardarAvance(){
+  const d = datosAvance();
   const nom = `avance_${(S.proyecto||'qc').replace(/\W+/g,'-').toLowerCase()}_${new Date().toISOString().slice(0,10)}.json`;
   descargar(nom, new Blob([JSON.stringify(d)], {type:'application/json'}));
   toast('Avance guardado');
 }
-async function abrirAvanceArchivo(f){
-  try{
-    const d = JSON.parse(await f.text());
-    S.proyecto=d.proyecto||''; S.cliente=d.cliente||''; S.revisor=d.revisor||'';
-    S.fps=d.fps||30; S.modoReparto=d.modoReparto||'acumulado'; S.umbralHueco=d.umbralHueco||1.5;
-    S.srtNombre=d.srtNombre||''; S.cues=d.cues||[];
-    S.doc=d.doc||[]; S.docNombre=d.docNombre||''; S.bloques=d.bloques||0;
-    $('#fProyecto').value=S.proyecto; $('#fCliente').value=S.cliente; $('#fRevisor').value=S.revisor;
-    const previos = S.clips.slice();
-    S.clips = (d.clips||[]).map(c=>{
-      const match = previos.find(p=>p.nombre===c.nombre);
-      return {id:'c'+(S.contador++), nombre:c.nombre, url:match?match.url:null, dur:c.dur, w:c.w, h:c.h,
-              inicio:c.inicio, sync:c.sync||0, bloque:c.bloque!=null?c.bloque:-1, coinc:c.coinc||0,
-              doc:S.doc.find(x=>x.num===c.docNum)||null, docSim:c.docSim||0, _bolsa:null,
-              subs:c.subs||[], errores:c.errores||[], segsOk:c.segsOk||[], revisado:!!c.revisado};
+
+/* ---------- autoguardado en el propio navegador (IndexedDB) ---------- */
+const BD = {
+  p:null,
+  abrir(){
+    if(this.p) return this.p;
+    this.p = new Promise((res,rej)=>{
+      const r = indexedDB.open('revisorQC', 1);
+      r.onupgradeneeded = ()=>{ if(!r.result.objectStoreNames.contains('sesion')) r.result.createObjectStore('sesion'); };
+      r.onsuccess = ()=>res(r.result);
+      r.onerror  = ()=>rej(r.error);
     });
-    S.actual = -1;
+    return this.p;
+  },
+  async op(modo, fn){
+    try{
+      const db = await this.abrir();
+      return await new Promise((res,rej)=>{
+        const t = db.transaction('sesion', modo);
+        const pet = fn(t.objectStore('sesion'));
+        t.oncomplete = ()=>res(pet ? pet.result : undefined);
+        t.onerror = ()=>rej(t.error);
+        t.onabort = ()=>rej(t.error);
+      });
+    }catch(e){ return undefined; }
+  },
+  set(v){ return this.op('readwrite', st=>st.put(v, 'actual')); },
+  get(){ return this.op('readonly',  st=>st.get('actual')); },
+  borrar(){ return this.op('readwrite', st=>st.delete('actual')); }
+};
+
+let _tGuardar = null, _guardando = false;
+function autoGuardar(){
+  if(!S.clips.length) return;
+  clearTimeout(_tGuardar);
+  _tGuardar = setTimeout(async ()=>{
+    if(_guardando) return;
+    _guardando = true;
+    try{
+      await BD.set(datosAvance());
+      const h = new Date();
+      $('#guardado').textContent = 'guardado ' + pad(h.getHours()) + ':' + pad(h.getMinutes());
+    }catch(e){
+      $('#guardado').textContent = 'no se pudo autoguardar';
+    }
+    _guardando = false;
+  }, 1200);
+}
+async function mirarSesionGuardada(){
+  const d = await BD.get();
+  if(!d || !d.clips || !d.clips.length) return;
+  const errs = d.clips.reduce((a,c)=>a + (c.errores?c.errores.length:0), 0);
+  const f = new Date(d.guardado);
+  $('#rescateTxt').innerHTML =
+    `Tienes una revisión sin terminar: <b>${esc(d.proyecto||'sin nombre')}</b> · ` +
+    `${d.clips.length} clip(s) · ${errs} error(es) · ${f.toLocaleString('es-ES')}`;
+  $('#rescate').classList.add('act');
+  $('#bRescatar').onclick = async ()=>{
+    $('#rescate').classList.remove('act');
+    cargarAvance(d);
+    toast('Recuperado · arrastra los clips para volver a verlos');
+  };
+  $('#bDescartar').onclick = async ()=>{
+    $('#rescate').classList.remove('act');
+    await BD.borrar();
+    toast('Sesión anterior descartada');
+  };
+}
+async function abrirAvanceArchivo(f){
+  try{ cargarAvance(JSON.parse(await f.text())); }
+  catch(err){ toast('Ese JSON no se pudo leer'); }
+}
+function cargarAvance(d){
+  S.proyecto=d.proyecto||''; S.cliente=d.cliente||''; S.revisor=d.revisor||'';
+  S.fps=d.fps||30; S.modoReparto=d.modoReparto||'acumulado'; S.umbralHueco=d.umbralHueco||1.5;
+  S.umbralGuion=d.umbralGuion||0.45; S.colorResalte=d.colorResalte||'#14a9ff';
+  S.srtNombre=d.srtNombre||''; S.cues=d.cues||[];
+  S.doc=d.doc||[]; S.docNombre=d.docNombre||''; S.bloques=d.bloques||0; S.rangos=d.rangos||{};
+  $('#fProyecto').value=S.proyecto; $('#fCliente').value=S.cliente; $('#fRevisor').value=S.revisor;
+  const previos = S.clips.slice();
+  S.clips = (d.clips||[]).map(c=>{
+    const match = previos.find(p=>p.nombre===c.nombre);
+    return {id:'c'+(S.contador++), nombre:c.nombre, url:match?match.url:null, dur:c.dur, w:c.w, h:c.h,
+            inicio:c.inicio, sync:c.sync||0, bloque:c.bloque!=null?c.bloque:-1, coinc:c.coinc||0,
+            doc:S.doc.find(x=>x.num===c.docNum)||null, docSim:c.docSim||0,
+            comoCruzo:c.comoCruzo||'', docManual:!!c.docManual, _bolsa:null,
+            subs:c.subs||[], errores:c.errores||[], segsOk:c.segsOk||[], revisado:!!c.revisado};
+  });
+  S.actual = -1;
+  if(S.clips.length){
     const conVideo = S.clips.findIndex(c=>c.url);
-    if(conVideo>=0) irAClip(conVideo, 0);
-    pintarTodo();
-    const faltan = S.clips.filter(c=>!c.url).length;
-    toast(faltan? `Avance cargado · faltan ${faltan} video(s), arrástralos` : 'Avance cargado');
-  }catch(err){ toast('Ese JSON no se pudo leer'); }
+    irAClip(conVideo >= 0 ? conVideo : 0, 0);
+  }
+  pintarTodo();
+  const faltan = S.clips.filter(c=>!c.url).length;
+  toast(faltan? `Avance cargado · faltan ${faltan} video(s), arrástralos` : 'Avance cargado');
 }
 function leerCabecera(){
   S.proyecto=$('#fProyecto').value.trim(); S.cliente=$('#fCliente').value.trim(); S.revisor=$('#fRevisor').value.trim();
@@ -1529,12 +1962,13 @@ document.addEventListener('keydown', e=>{
 });
 
 ['fProyecto','fCliente','fRevisor'].forEach(id=>$('#'+id).addEventListener('input', leerCabecera));
-window.addEventListener('beforeunload', e=>{
-  if(todosLosErrores().length){ e.preventDefault(); e.returnValue=''; }
-});
+/* al arrancar, mirar si quedó una revisión a medias */
+mirarSesionGuardada();
 
 pintarTodo();
-window.QC = {S, parseSubs, repartir, construirInforme, cargarArchivos, capturarFrame, nuevoError, aTC, aMS, irAClip, todosLosErrores};
+window.QC = {S, parseSubs, repartir, construirInforme, cargarArchivos, capturarFrame, nuevoError,
+  aTC, aMS, irAClip, todosLosErrores, aplicarRangos, cruzarClips, cargarAvance, datosAvance,
+  autoGuardar, mirarSesionGuardada, BD, statsResalte};
 </script>
 </body>
 </html>

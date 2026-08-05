@@ -66,20 +66,31 @@ descripción con la palabra dentro. Es la vía rápida para el 80 % de los error
 | <kbd>1</kbd>…<kbd>9</kbd> | error del tipo N directamente |
 | <kbd>Esc</kbd> | cerrar ventana |
 
-### Guardar a medias
+### No se pierde el trabajo
 
-**Guardar avance** baja un `.json` con todo (errores, capturas y segundos revisados).
-Para retomar: abre `index.html`, arrastra otra vez los clips y luego el `.json`
-(o pulsa **Abrir avance**). Los videos se reenganchan por nombre de archivo.
+Todo lo que marcas **se guarda solo en el navegador** mientras revisas: errores,
+capturas, segundos revisados, sync y cabecera. Arriba a la derecha ves la hora del
+último autoguardado.
+
+Si se recarga la página, se cierra el navegador o se va la luz, al volver a abrir
+`index.html` sale una barra verde: *«Tienes una revisión sin terminar…»* → **Recuperar**.
+Vuelve todo menos los vídeos, que el navegador no puede guardar. Los arrastras otra vez
+y **se reenganchan por nombre, sin duplicar ni perder nada**. Cada clip sin vídeo te lo
+dice en pantalla.
+
+Aparte, **Guardar avance** baja un `.json` con todo, por si quieres llevártelo a otro
+ordenador o guardarlo como copia. Se abre con **Abrir avance**.
+
+Para empezar de cero: *Ajustes → Autoguardado → Borrar el autoguardado*.
 
 ---
 
 ## 2 · Cómo se cruza todo
 
-El equipo manda **un solo `.srt`** con los 10 SRT pegados uno detrás de otro, cada uno
-empezando en `00:00:00`. Los clips no vienen en el mismo orden que los bloques del SRT,
-así que el revisor no reparte por tiempo: **cruza por contenido**, usando el `.docx`
-como puente.
+El `.srt` no viene siempre igual. Puede ser la secuencia entera con los clips separados
+por silencios, los `.srt` de cada clip pegados uno detrás de otro, o la entrevista
+completa. **Da igual cuál sea**: con el `.docx` cargado el revisor no mira el reloj,
+mira el contenido.
 
 ```
 video.mp4  ──(nombre de archivo)──▶  C) Título del doc
@@ -87,34 +98,66 @@ video.mp4  ──(nombre de archivo)──▶  C) Título del doc
                                      B) Orden final
                                              │
                                              ▼  (texto)
-                                   su bloque dentro del .srt
+                                   su tramo dentro del .srt
 ```
 
-Por eso el `C) Título` del documento **tiene que ser exactamente el nombre del `.mp4`**
-— así viene ya en tus docs (`Alta cocina no es cuidar al comensal CLIP 1.mp4`).
+Cómo lo hace: puntúa cada línea del `.srt` contra el guion de cada clip del documento
+—pesando más las palabras raras, que son las que identifican—, suaviza en una ventana
+de ±4 líneas y corta donde cambia el clip, pegando el corte al silencio más cercano.
+Después rebasa los tiempos al arranque de cada clip.
 
-En **Ajustes** ves cómo quedó: cuántos clips trae el doc, cuántos bloques encontró en
-el `.srt` y cuántos cruzaron. Si alguno queda sin guion, es que el nombre del archivo
-no coincide con ningún `C) Título`.
+**No importa que el doc traiga clips que no se montaron**: los que no aparecen en el
+`.srt` se quedan fuera solos.
+
+### Y si el equipo renombró los archivos
+
+El cruce vídeo ↔ clip del doc va en tres pasos, y para si acierta:
+
+1. **Por nombre de archivo** contra el `C) Título` del doc (con o sin `.mp4`, da igual).
+2. **Por duración**: cada clip del doc tiene un tramo en el `.srt` con su duración; se
+   compara con la del `.mp4`. Y como los clips salen de la secuencia en orden y los
+   archivos suelen venir numerados igual, el emparejado es *monótono*: nunca cruza dos
+   por delante. Probado con los 15 clips de Piti renombrados a `PITI_reel_01_MAO.mp4`…
+   → 15 de 15 en su sitio.
+3. **A mano**: en **Ajustes → Cruce** hay un desplegable por clip. Lo que cambies ahí
+   manda sobre todo lo demás, y **Volver a cruzar solo** lo devuelve al automático.
+
+Al lado de cada clip ves cómo cruzó: `nombre` (verde), `duración` (azul), `manual`
+(rosa) u `orden` (ámbar, verifícalo). Si un clip se queda sin subtítulos o mezcla texto
+de otro, mueve *Exigencia del cruce* (0.45 por defecto): súbelo si mezcla, bájalo si
+deja clips vacíos.
 
 ### Cotejo
 
-Con el doc cargado, cada palabra del subtítulo que **no está en el guion aprobado** sale
-subrayada en rojo, y arriba tienes el % de coincidencia. Ahí caen solas las palabras de
-más y las que Premiere transcribió mal. Clic encima y la reportas.
+Cada palabra del subtítulo que **no está en el guion aprobado** sale subrayada en rojo,
+con el % de coincidencia arriba. Ahí caen solas las palabras de más y las que Premiere
+transcribió mal. Clic encima y la reportas.
+
+### Resalte
+
+Si el `.srt` trae el resalte de Premiere (`<font color="#009df9">`), el revisor lo
+conserva: la palabra se ve **en su color** tanto en la lista como encima del vídeo. Y
+avisa cuando se rompe la regla ESENCIA:
+
+- resalte de más de una palabra
+- dos resaltes en la misma línea
+- cuatro o más líneas seguidas con resalte
+
+Arriba tienes el resumen del clip: `21/44 con resalte · 16 con más de 1 palabra ·
+racha de 7`. Si el `.srt` no trae color, te lo dice y revisas el resalte a ojo.
 
 ### Sync
 
-Cada bloque del `.srt` ya viene en el tiempo de su clip, así que suele cuadrar de
-entrada. Si un clip va corrido, ponte en el frame donde arranca esa frase y pulsa
-**empieza aquí** en la línea: calcula el desfase de todo el clip de una vez. También
-tienes el campo *Sync* y **a todos** para propagarlo.
+Los tiempos se rebasan al arranque de cada clip, así que suele cuadrar de entrada. Si
+un clip va corrido: ponte en el frame donde arranca esa frase y pulsa **empieza aquí**
+en la línea. Cuadra el clip entero de una vez. También tienes el campo *Sync* y
+**a todos** para propagarlo.
 
-### Otros modos
+### Sin documento
 
-Si algún día el SRT viene distinto, en **Ajustes → Reparto** hay tres modos más:
-timeline continuo por duración acumulada, por huecos de silencio, y manual con el IN
-de cada clip escrito a mano.
+Si no hay `.docx`, en **Ajustes → Reparto** quedan los modos por tiempo: un SRT por
+clip pegados, timeline continuo por duración acumulada, por huecos de silencio, y
+manual con el IN de cada clip a mano.
 
 ## 3 · El informe
 
@@ -192,13 +235,16 @@ Decide caso por caso con cada cliente.
 | Síntoma | Qué pasa |
 |---|---|
 | El video no se ve | Códec raro. Prueba en Chrome; si es HEVC/ProRes, exporta el clip a H.264 |
-| Un clip sale con `0 subs` | No encontró su bloque. Mira *Ajustes → Cruce*: puede que el `.srt` traiga menos bloques que clips |
+| Un clip sale con `0 subs` | Ese clip no está en el `.srt`, o el cruce fue flojo. Baja *Exigencia del cruce* en Ajustes |
 | Un clip sale «sin guion» | El nombre del `.mp4` no coincide con ningún `C) Título` del doc. Revisa que no lo hayan renombrado |
 | Todo sale subrayado en rojo | El doc no es el de esa entrevista, o el clip cruzó con el guion equivocado. Míralo en la pestaña *Guion* |
+| Un clip mezcla texto de otro | Sube *Exigencia del cruce* a 0.55-0.6 y pulsa Aplicar reparto |
+| No se ve ningún resalte en color | Ese `.srt` no trae las etiquetas `<font color>`. Pide al equipo que exporte la transcripción con formato |
 | Los subtítulos van desfasados | Ponte en el frame donde arranca la frase y pulsa **empieza aquí** en esa línea |
 | «este navegador no sabe descomprimir .docx» | Hace falta Chrome o Safari 16.4+ |
 | La captura sale negra | El frame aún no estaba decodificado: pausa, espera medio segundo y vuelve a capturar |
 | El informe pesa mucho | Normal: cada captura son ~60-120 KB. 40 errores ≈ 4 MB. GitHub aguanta hasta 100 MB por archivo |
+| Un clip cruzó con el guion equivocado | *Ajustes → Cruce*: elígelo a mano en el desplegable |
 | El equipo perdió sus checks | Se guardan por navegador y por informe. Si cambian de navegador o borran datos, se pierden — por eso está **Exportar estado** |
 | `publicar-informe.command` no abre | Clic derecho → Abrir → Abrir. O `chmod +x publicar-informe.command` |
 
