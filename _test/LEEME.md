@@ -1,27 +1,27 @@
-# Prueba automática
+# Pruebas automáticas
 
-`test.js` abre el revisor en un Chromium real y comprueba 63 cosas: carga de clips y
-SRT, reparto de subtítulos, layout al 50 %, paso a paso, cinta de segundos, captura de
-frame (incluso que el JPEG tenga el color real del clip), marcado de errores, guardar y
-reabrir el avance, y el informe completo — capturas incrustadas, checkboxes, filtros,
-persistencia y export del estado.
+Dos suites que abren el revisor en un Chromium real. **No hacen falta para usarlo**;
+están aquí por si tocas `index.html` y quieres asegurarte de no haber roto nada.
 
-**No hace falta para usar el revisor.** Está aquí por si alguna vez tocas `index.html`
-y quieres asegurarte de no haber roto nada.
+- **`test.js`** — 63 comprobaciones del núcleo: carga, layout al 50 %, paso a paso,
+  cinta de segundos, captura de frame (verifica que el JPEG tenga el color real del
+  clip), errores, guardar/reabrir avance, informe completo con checkboxes, filtros,
+  persistencia y export. Más casos límite: SRT con BOM, CRLF, etiquetas y timecodes
+  con hora.
 
-## Correrla
+- **`test-esencia.js`** — 37 comprobaciones con el paquete real: el `.docx` de
+  aprobados de Casiel Nieto, los 10 SRT pegados **en orden distinto al de los clips**
+  y los 10 vídeos. Verifica que cada vídeo cae en su clip del doc por nombre de
+  archivo, que cada clip se queda con su bloque del `.srt` por contenido (10/10), que
+  el cotejo subraya las palabras metidas a mano y que el sync se calibra con el vídeo.
+
+## Correrlas
 
 ```bash
 npm i playwright && npx playwright install chromium
-
-# clips y SRT de prueba (necesita ffmpeg)
-mkdir -p /tmp/qc/fixtures && cd /tmp/qc/fixtures
-ffmpeg -y -f lavfi -i "color=c=0x1b3a5c:s=540x960:d=12,format=yuv420p" -c:v libvpx-vp9 -b:v 300k reel01.webm
-ffmpeg -y -f lavfi -i "color=c=0x5c1b3a:s=540x960:d=18,format=yuv420p" -c:v libvpx-vp9 -b:v 300k reel02.webm
-ffmpeg -y -f lavfi -i "color=c=0x3a5c1b:s=540x960:d=9,format=yuv420p"  -c:v libvpx-vp9 -b:v 300k reel03.webm
-# + un proyecto.srt con timecodes corridos de 0 a 39 s
-
 node test.js
+node test-esencia.js
 ```
 
-Última pasada: **63 OK · 0 fallos**.
+Necesitan fixtures en `/tmp/qc/fixtures` y `/tmp/qc/fix2` (vídeos generados con ffmpeg
+y los SRT correspondientes). Última pasada: **63 OK + 37 OK · 0 fallos**.

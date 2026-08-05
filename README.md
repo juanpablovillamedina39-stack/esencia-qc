@@ -14,15 +14,16 @@ lo decides, es el informe.
 ## 1 · Revisar
 
 1. Doble clic en `index.html` (Chrome o Safari).
-2. Arrastra encima **todos los clips** (`.mp4`) **y el `.srt` del proyecto**. Los clips
-   se ordenan solos por nombre y el SRT se reparte entre ellos.
+2. Arrastra encima **todos los clips** (`.mp4`), el **`.srt` del proyecto** y el
+   **`.docx` de clips aprobados**. Se cruza todo solo (ver punto 2).
 3. Escribe arriba el **proyecto**, el **cliente** y tu nombre como **revisor**.
 4. Video a la izquierda ocupando media pantalla; a la derecha, las cuatro pestañas:
 
 | Pestaña | Para qué |
 |---|---|
 | **Clips** | Saltar de clip, ver el avance y marcarlos como revisados |
-| **Subtítulos** | Las líneas de ese clip. Clic en una línea = saltar ahí. **Clic en una palabra = reportarla al instante** |
+| **Subtítulos** | Las líneas de ese clip. Clic en una línea = saltar ahí. **Clic en una palabra = reportarla al instante**. Lo subrayado en rojo no está en el guion |
+| **Guion** | Lo que dice el doc de ese clip: orden final y frases fuente con su timecode de entrevista |
 | **Errores** | Todo lo que llevas marcado, con su miniatura |
 | **Ajustes** | Reparto del SRT, FPS y atajos |
 
@@ -73,24 +74,47 @@ Para retomar: abre `index.html`, arrastra otra vez los clips y luego el `.json`
 
 ---
 
-## 2 · El reparto del SRT
+## 2 · Cómo se cruza todo
 
-El equipo manda **un solo `.srt`** con los timecodes corridos de toda la secuencia.
-El revisor lo trocea solo: el clip 1 se queda con lo que cae dentro de su duración,
-el clip 2 empieza donde acaba el 1, y así.
+El equipo manda **un solo `.srt`** con los 10 SRT pegados uno detrás de otro, cada uno
+empezando en `00:00:00`. Los clips no vienen en el mismo orden que los bloques del SRT,
+así que el revisor no reparte por tiempo: **cruza por contenido**, usando el `.docx`
+como puente.
 
-Si algún clip queda sin subtítulos o con los que no son, ve a **Ajustes → Reparto**:
+```
+video.mp4  ──(nombre de archivo)──▶  C) Título del doc
+                                             │
+                                     B) Orden final
+                                             │
+                                             ▼  (texto)
+                                   su bloque dentro del .srt
+```
 
-- **Timeline continuo (duración acumulada)** — el modo normal.
-- **Timeline continuo (detectar por huecos)** — si entre clip y clip hay silencio en
-  la secuencia. Ajusta el "hueco mínimo".
-- **Cada clip reinicia en 0** — si el SRT trae los tiempos de cada clip desde cero.
-- **Manual** — escribes a mano el IN de cada clip dentro de la secuencia.
+Por eso el `C) Título` del documento **tiene que ser exactamente el nombre del `.mp4`**
+— así viene ya en tus docs (`Alta cocina no es cuidar al comensal CLIP 1.mp4`).
 
-Debajo tienes el IN de cada clip y cuántos subtítulos le tocaron: si ves un `0 subs`,
-ahí está el problema.
+En **Ajustes** ves cómo quedó: cuántos clips trae el doc, cuántos bloques encontró en
+el `.srt` y cuántos cruzaron. Si alguno queda sin guion, es que el nombre del archivo
+no coincide con ningún `C) Título`.
 
----
+### Cotejo
+
+Con el doc cargado, cada palabra del subtítulo que **no está en el guion aprobado** sale
+subrayada en rojo, y arriba tienes el % de coincidencia. Ahí caen solas las palabras de
+más y las que Premiere transcribió mal. Clic encima y la reportas.
+
+### Sync
+
+Cada bloque del `.srt` ya viene en el tiempo de su clip, así que suele cuadrar de
+entrada. Si un clip va corrido, ponte en el frame donde arranca esa frase y pulsa
+**empieza aquí** en la línea: calcula el desfase de todo el clip de una vez. También
+tienes el campo *Sync* y **a todos** para propagarlo.
+
+### Otros modos
+
+Si algún día el SRT viene distinto, en **Ajustes → Reparto** hay tres modos más:
+timeline continuo por duración acumulada, por huecos de silencio, y manual con el IN
+de cada clip escrito a mano.
 
 ## 3 · El informe
 
@@ -168,8 +192,11 @@ Decide caso por caso con cada cliente.
 | Síntoma | Qué pasa |
 |---|---|
 | El video no se ve | Códec raro. Prueba en Chrome; si es HEVC/ProRes, exporta el clip a H.264 |
-| Un clip sale con `0 subs` | Reparto mal: **Ajustes → Reparto**, prueba otro modo o pon los IN a mano |
-| Los subtítulos van desfasados | El SRT no es el de esos clips, o el reparto es otro. Compruébalo en *Ajustes* |
+| Un clip sale con `0 subs` | No encontró su bloque. Mira *Ajustes → Cruce*: puede que el `.srt` traiga menos bloques que clips |
+| Un clip sale «sin guion» | El nombre del `.mp4` no coincide con ningún `C) Título` del doc. Revisa que no lo hayan renombrado |
+| Todo sale subrayado en rojo | El doc no es el de esa entrevista, o el clip cruzó con el guion equivocado. Míralo en la pestaña *Guion* |
+| Los subtítulos van desfasados | Ponte en el frame donde arranca la frase y pulsa **empieza aquí** en esa línea |
+| «este navegador no sabe descomprimir .docx» | Hace falta Chrome o Safari 16.4+ |
 | La captura sale negra | El frame aún no estaba decodificado: pausa, espera medio segundo y vuelve a capturar |
 | El informe pesa mucho | Normal: cada captura son ~60-120 KB. 40 errores ≈ 4 MB. GitHub aguanta hasta 100 MB por archivo |
 | El equipo perdió sus checks | Se guardan por navegador y por informe. Si cambian de navegador o borran datos, se pierden — por eso está **Exportar estado** |
@@ -186,7 +213,7 @@ esencia-qc/
 ├── publicar-informe.command   doble clic para publicar
 ├── robots.txt                 pide no indexar
 ├── .gitignore                 impide subir videos por error
-└── _test/                     prueba automática (no hace falta para usarlo)
+└── _test/                     pruebas automáticas (no hacen falta para usarlo)
 ```
 
 Hecho para Juan Pablo Edit · Revisor QC ESENCIA
