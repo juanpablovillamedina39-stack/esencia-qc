@@ -26,12 +26,18 @@ están por si tocas `index.html` y quieres asegurarte de no haber roto nada.
   capturas, segundos, cabecera) y al volver a soltar los vídeos se reenganchan sin
   duplicar ni perder nada.
 
+- **`test-ui.js`** (34 checks) — comportamiento del revisor: que los tipos nuevos
+  (**Ortografía**, **Falta texto**) estén en la ficha y en el informe, que añadir un
+  error **no te saque de la pestaña** en la que estás (probado desde las cuatro y con
+  el atajo <kbd>E</kbd>) ni te mueva el scroll, y que el **acordeón** de la pestaña
+  Errores abra, cierre, recuerde lo que tocaste y no se reabra solo.
+
 ## Correrlas
 
 ```bash
 npm i playwright && npx playwright install chromium
-node test.js && node test-esencia.js && node test-piti.js && node test-persistencia.js
+node test.js && node test-esencia.js && node test-piti.js && node test-persistencia.js && node test-ui.js
 ```
 
 Necesitan fixtures en `/tmp/qc/fixtures`, `/tmp/qc/fix2`, `/tmp/qc/fix3` y `/tmp/qc/fix4`.
-Última pasada: **63 + 37 + 29 + 25 = 154 OK · 0 fallos**.
+Última pasada: **63 + 37 + 29 + 25 + 34 = 188 OK · 0 fallos**.

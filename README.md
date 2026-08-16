@@ -24,7 +24,7 @@ lo decides, es el informe.
 | **Clips** | Saltar de clip, ver el avance y marcarlos como revisados |
 | **Subtítulos** | Las líneas de ese clip. Clic en una línea = saltar ahí. **Clic en una palabra = reportarla al instante**. Lo subrayado en rojo no está en el guion |
 | **Guion** | Lo que dice el doc de ese clip: orden final y frases fuente con su timecode de entrevista |
-| **Errores** | Todo lo que llevas marcado, con su miniatura |
+| **Errores** | Un desplegable por clip: lo abres y ves sus observaciones con la miniatura |
 | **Ajustes** | Reparto del SRT, FPS y atajos |
 
 ### Segundo a segundo
@@ -44,9 +44,21 @@ Se abre la ficha **con la captura de ese frame ya tomada**. Eliges tipo, severid
 plano (P1 / P2 / P3), escribes qué hay que corregir y listo. El subtítulo que sonaba
 en ese punto se guarda solo.
 
-Tipos disponibles: texto de más · palabra faltante · inaudible · sin resaltar ·
+Tipos disponibles: texto de más · falta texto · ortografía · inaudible · sin resaltar ·
 resalte incorrecto · encuadre · plano/corte · colorimetría · sync de subtítulo ·
 audio · otro.
+
+**Marcar un error no te mueve de sitio**: te quedas en la pestaña en la que estabas y
+con el scroll donde lo tenías, para seguir revisando sin perder el hilo.
+
+### La pestaña Errores
+
+Un desplegable por clip. La cabecera te dice de un vistazo cuántos lleva y de qué
+gravedad (`3 críticos · 1 medio`), y los clips limpios se resumen en una línea al final.
+
+- El clip en el que estás se abre solo; los demás quedan cerrados.
+- Lo que abras o cierres a mano se respeta: no se reabre solo al cambiar de clip.
+- **Abrir todo** / **Cerrar todo** arriba a la derecha.
 
 **Truco:** en la pestaña *Subtítulos*, clic sobre una palabra concreta abre un menú
 rápido (*sobra* / *falta* / *debía ir resaltada* / *no se entiende*) y te rellena la
@@ -63,7 +75,7 @@ descripción con la palabra dentro. Es la vía rápida para el 80 % de los error
 | <kbd>G</kbd> | segundo OK, saltar al siguiente |
 | <kbd>S</kbd> | captura suelta (se descarga como .jpg) |
 | <kbd>N</kbd> / <kbd>P</kbd> | clip siguiente / anterior |
-| <kbd>1</kbd>…<kbd>9</kbd> | error del tipo N directamente |
+| <kbd>1</kbd>…<kbd>9</kbd> | error del tipo N directamente (1 texto de más, 2 falta texto, 3 ortografía…) |
 | <kbd>Esc</kbd> | cerrar ventana |
 
 ### No se pierde el trabajo

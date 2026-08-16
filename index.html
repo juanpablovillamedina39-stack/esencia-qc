@@ -124,6 +124,24 @@ button.cal{opacity:.35;font-size:10px;padding:2px 6px}
 .err .acc{display:flex;gap:6px;margin-top:7px}
 .tipoTag{background:var(--bg3);padding:2px 8px;border-radius:20px;font-size:11px;font-weight:600}
 
+/* acordeón de errores */
+.grupo{border:1px solid var(--linea);border-radius:10px;margin-bottom:8px;overflow:hidden;background:var(--bg2)}
+.grupo.actual{border-color:#33506b}
+.grupo.abierto{background:#101720}
+.grupo.limpio{opacity:.6;background:transparent}
+.grupoCab{display:flex;align-items:center;gap:9px;padding:10px 11px;cursor:pointer;user-select:none}
+.grupoCab:hover{background:#1a2430}
+.grupo.limpio .grupoCab:hover{background:transparent}
+.grupoCab .flecha{width:12px;color:var(--txt2);font-size:11px}
+.grupoCab .num{background:var(--bg3);border-radius:6px;padding:1px 7px;font-size:11px;font-weight:700;font-family:ui-monospace,monospace}
+.grupoCab .nom{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-weight:600;font-size:13px}
+.grupoCab .tot{background:var(--bg3);border-radius:20px;padding:1px 9px;font-size:11px;font-weight:700;color:var(--txt2)}
+.grupoCuerpo{padding:0 9px}
+.grupo.abierto .grupoCuerpo{padding:2px 9px 9px}
+.b-med{background:#3a2f11;color:#ffcf6b}
+.pill.sev-critico{color:#ff8b98}
+.pill.sev-medio{color:var(--amb)}
+
 /* modal */
 #velo{position:fixed;inset:0;background:rgba(0,0,0,.72);display:none;align-items:center;justify-content:center;z-index:50;padding:20px}
 #velo.act{display:flex}
@@ -252,7 +270,8 @@ kbd{background:var(--bg3);border:1px solid var(--linea);border-bottom-width:2px;
 
 const TIPOS = [
   {id:'texto_mas',   n:'Texto de más',        c:'#f5384e', ayuda:'Palabra o frase escrita que no se dice'},
-  {id:'texto_falta', n:'Palabra faltante',    c:'#ff7043', ayuda:'Se dice pero no está en el subtítulo'},
+  {id:'texto_falta', n:'Falta texto',         c:'#ff7043', ayuda:'Está en el guion pero no en el vídeo (una palabra o varias)'},
+  {id:'ortografia',  n:'Ortografía',          c:'#ec407a', ayuda:'Tilde, mayúscula, puntuación o errata'},
   {id:'inaudible',   n:'Inaudible',           c:'#ffaf14', ayuda:'No se entiende / audio sucio'},
   {id:'sin_resalte', n:'Sin resaltar',        c:'#14a9ff', ayuda:'La palabra clave quedó en blanco'},
   {id:'mal_resalte', n:'Resalte incorrecto',  c:'#4fc3f7', ayuda:'Resaltó una palabra que no era'},
@@ -273,7 +292,7 @@ const S = {
   umbralHueco:1.5,
   clips:[],                  // {id,nombre,archivo,url,dur,inicio,subs:[],errores:[],segsOk:[],revisado:false}
   srtNombre:'', cues:[],     // cues del srt tal cual viene
-  doc:[], docNombre:'', bloques:0, rangos:{}, colorResalte:'#14a9ff', umbralGuion:0.45,
+  doc:[], docNombre:'', bloques:0, rangos:{}, abiertos:new Set(), cerrados:new Set(), colorResalte:'#14a9ff', umbralGuion:0.45,
   actual:-1,
   contador:1
 };
@@ -1072,8 +1091,10 @@ function abrirModalError(e, esNuevo){
     const i = c2.errores.findIndex(x=>x.id===d.id);
     if(i>=0) c2.errores[i]=d; else c2.errores.push(d);
     c2.errores.sort((a,b)=>a.t-b.t);
-    cerrarModal(); pintarTodo(); irVista('errores');
-    toast(i>=0?'Error actualizado':'Error añadido');
+    cerrarModal();
+    if(i < 0) S.cerrados.delete(S.actual);   // que se vea el clip del error nuevo
+    pintarTodo();
+    toast(i>=0 ? 'Error actualizado' : `Error añadido · ${c2.errores.length} en este clip`);
   };
 }
 function cerrarModal(){ $('#velo').classList.remove('act'); $('#modal').innerHTML=''; }
@@ -1111,7 +1132,11 @@ function statsResalte(c){
 }
 
 /* ============================ PINTAR PANELES ============================ */
-function pintarTodo(){ autoGuardar(); pintarClips(); pintarSubs(); pintarGuion(); pintarErrores(); pintarAjustes(); pintarCinta(); pintarBarra(); pintarTC(); pintarOverlay(); pintarCabecera(); }
+function pintarTodo(){
+  const pnl = $('#panel'), sc = pnl ? pnl.scrollTop : 0;
+  autoGuardar(); pintarClips(); pintarSubs(); pintarGuion(); pintarErrores(); pintarAjustes(); pintarCinta(); pintarBarra(); pintarTC(); pintarOverlay(); pintarCabecera();
+  if(pnl) pnl.scrollTop = sc;
+}
 
 function pintarCabecera(){
   $('#nClips').textContent = S.clips.length;
@@ -1309,9 +1334,10 @@ function menuPalabra(pal, s, fuera){
     <div class="ayuda" style="margin-bottom:12px">${esc(s.texto)}</div>
     ${fuera?'<div class="caja" style="padding:8px 11px;margin-bottom:12px;border-color:#5c2430;color:#ff8b98;font-size:13px">Esta palabra no aparece en el guion aprobado.</div>':''}
     <div class="grid2">
-      ${[['texto_mas','Sobra esta palabra'],['texto_falta','Falta una palabra aquí'],
-         ['sin_resalte','Debía ir resaltada'],['mal_resalte','No debía ir resaltada'],
-         ['inaudible','No se entiende'],['otro','Otro problema']]
+      ${[['texto_mas','Sobra esta palabra'],['texto_falta','Falta texto aquí'],
+         ['ortografia','Está mal escrita'],['sin_resalte','Debía ir resaltada'],
+         ['mal_resalte','No debía ir resaltada'],['inaudible','No se entiende'],
+         ['otro','Otro problema']]
         .map(([t,n])=>`<button data-t="${t}" style="text-align:left;margin-bottom:7px">${n}</button>`).join('')}
     </div>
     <div class="fila" style="margin-top:6px"><span class="sep" style="flex:1"></span><button id="mCancel">Cancelar</button></div>`;
@@ -1322,7 +1348,8 @@ function menuPalabra(pal, s, fuera){
     cerrarModal();
     const textos = {
       texto_mas:`Sobra la palabra «${pal}» en el subtítulo.`,
-      texto_falta:`Falta una palabra junto a «${pal}».`,
+      texto_falta:`Falta texto junto a «${pal}»: está en el guion y no en el vídeo.`,
+      ortografia:`«${pal}» está mal escrita.`,
       sin_resalte:`La palabra «${pal}» tenía que ir resaltada en color.`,
       mal_resalte:`La palabra «${pal}» no debía ir resaltada.`,
       inaudible:`No se entiende «${pal}».`,
@@ -1334,26 +1361,46 @@ function menuPalabra(pal, s, fuera){
 function pintarErrores(){
   const v = $('#v-errores');
   const todos = todosLosErrores();
-  if(!todos.length){ v.innerHTML='<div class="vacio">Todavía no hay errores marcados.<br>Pulsa <kbd>E</kbd> con el video en el punto del problema.</div>'; return; }
-  const porClip = {};
-  todos.forEach(e=>{ (porClip[e.ci] = porClip[e.ci]||[]).push(e); });
+  if(!todos.length){
+    v.innerHTML = '<div class="vacio">Todavía no hay errores marcados.<br>Pulsa <kbd>E</kbd> con el video en el punto del problema.</div>';
+    return;
+  }
+  const conErr = S.clips.map((c,i)=>({c,i})).filter(x=>x.c.errores.length);
+  const limpios = S.clips.map((c,i)=>({c,i})).filter(x=>!x.c.errores.length);
+
+  // regla: el clip en el que estás va abierto, salvo que lo hayas cerrado tú.
+  // Los demás, cerrados salvo que los hayas abierto tú.
+  const estaAbierto = i => S.abiertos.has(i) || (i === S.actual && !S.cerrados.has(i));
+
   let h = `<div class="fila" style="margin-bottom:12px">
       <span class="pill">${todos.length} en total</span>
-      ${SEVS.map(s=>`<span class="pill">${s.n}: ${todos.filter(e=>e.sev===s.id).length}</span>`).join('')}
+      ${SEVS.map(sv=>{
+        const n = todos.filter(e=>e.sev===sv.id).length;
+        return n ? `<span class="pill sev-${sv.id}">${sv.n}: ${n}</span>` : '';
+      }).join('')}
+      <span class="sep" style="flex:1"></span>
+      <button class="peq" id="bAbrirTodo">Abrir todo</button>
+      <button class="peq" id="bCerrarTodo">Cerrar todo</button>
     </div>`;
-  Object.keys(porClip).sort((a,b)=>a-b).forEach(ci=>{
-    const c = S.clips[ci];
-    h += `<h2>${esc(c.nombre)} · ${porClip[ci].length}</h2>`;
-    porClip[ci].forEach(e=>{
+
+  conErr.forEach(({c,i})=>{
+    const abierto = estaAbierto(i);
+    const errs = c.errores;
+    const nc = errs.filter(e=>e.sev==='critico').length;
+    const nm = errs.filter(e=>e.sev==='medio').length;
+    const nn = errs.filter(e=>e.sev==='menor').length;
+
+    let cuerpo = '';
+    if(abierto) errs.forEach(e=>{
       const tp = tipoDe(e.tipo);
-      h += `<div class="err sev-${e.sev}" data-id="${e.id}" data-ci="${ci}">
+      cuerpo += `<div class="err sev-${e.sev}" data-id="${e.id}" data-ci="${i}">
         ${e.captura?`<img src="${e.captura}" alt="captura" data-lupa="${e.id}">`:''}
         <div class="cuerpo">
           <div class="cab">
             <span class="tipoTag" style="color:${tp.c}">${tp.n}</span>
             <span class="mono" style="color:var(--txt2)">${aTC(e.t)}</span>
             ${e.plano?`<span class="pill">${e.plano}</span>`:''}
-            <span class="pill">${SEVS.find(s=>s.id===e.sev).n}</span>
+            <span class="pill">${SEVS.find(sv=>sv.id===e.sev).n}</span>
           </div>
           <div class="desc">${esc(e.desc)}</div>
           ${e.cita?`<div class="cita">«${esc(e.cita)}»</div>`:''}
@@ -1363,20 +1410,53 @@ function pintarErrores(){
           </div>
         </div></div>`;
     });
+
+    h += `<div class="grupo ${abierto?'abierto':''}${i===S.actual?' actual':''}" data-g="${i}">
+      <div class="grupoCab" data-toggle="${i}">
+        <span class="flecha">${abierto?'▾':'▸'}</span>
+        <span class="num">${pad(i+1)}</span>
+        <span class="nom">${esc(c.nombre)}</span>
+        ${nc?`<span class="badge b-err">${nc} crítico${nc>1?'s':''}</span>`:''}
+        ${nm?`<span class="badge b-med">${nm} medio${nm>1?'s':''}</span>`:''}
+        ${nn?`<span class="badge b-pend">${nn} menor${nn>1?'es':''}</span>`:''}
+        <span class="tot">${errs.length}</span>
+      </div>
+      <div class="grupoCuerpo">${cuerpo}</div>
+    </div>`;
   });
+
+  if(limpios.length){
+    h += `<div class="grupo limpio"><div class="grupoCab" style="cursor:default">
+        <span class="flecha" style="opacity:.3">·</span>
+        <span class="nom" style="color:var(--txt3)">${limpios.length} clip(s) sin observaciones</span>
+        <span class="badge b-ok">OK</span>
+      </div></div>`;
+  }
+
   v.innerHTML = h;
+
+  $('#bAbrirTodo').onclick  = ()=>{ S.cerrados.clear(); conErr.forEach(x=>S.abiertos.add(x.i)); pintarErrores(); };
+  $('#bCerrarTodo').onclick = ()=>{ S.abiertos.clear(); conErr.forEach(x=>S.cerrados.add(x.i)); pintarErrores(); };
+  v.querySelectorAll('[data-toggle]').forEach(el=>el.onclick=()=>{
+    const i = +el.dataset.toggle;
+    if(estaAbierto(i)){ S.abiertos.delete(i); S.cerrados.add(i); }
+    else { S.cerrados.delete(i); S.abiertos.add(i); }
+    pintarErrores();
+  });
   v.querySelectorAll('[data-ir]').forEach(b=>b.onclick=()=>{
-    const el = b.closest('.err'); const ci=+el.dataset.ci;
+    const ci = +b.closest('.err').dataset.ci;
     const e = S.clips[ci].errores.find(x=>x.id===b.dataset.ir);
     irAClip(ci, e.t);
   });
   v.querySelectorAll('[data-ed]').forEach(b=>b.onclick=()=>{
-    const el = b.closest('.err'); const ci=+el.dataset.ci;
-    if(ci!==S.actual) irAClip(ci, S.clips[ci].errores.find(x=>x.id===b.dataset.ed).t);
+    const ci = +b.closest('.err').dataset.ci;
+    const e = S.clips[ci].errores.find(x=>x.id===b.dataset.ed);
+    if(ci!==S.actual) irAClip(ci, e.t);
     setTimeout(()=>abrirModalError(S.clips[ci].errores.find(x=>x.id===b.dataset.ed), false), 150);
   });
   v.querySelectorAll('[data-lupa]').forEach(im=>im.onclick=()=>{ $('#lupaImg').src=im.src; $('#lupa').classList.add('act'); });
 }
+
 function pintarAjustes(){
   const v = $('#v-ajustes');
   v.innerHTML = `
